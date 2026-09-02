@@ -1,0 +1,35 @@
+# MATLAB autosave / temporary files
+*.asv
+*.m~
+*.autosave
+
+# OS junk
+.DS_Store
+**/.DS_Store
+__MACOSX/
+Thumbs.db
+
+# IDE/editor files
+.vscode/
+.idea/
+
+# Raw experimental data directories
+Measurements/
+measurements/
+Data/
+data/
+raw_data/
+raw_pnrf_files/
+
+# Intermediate exported data
+matlab_exports/
+processed_data/
+
+# Generated figures / results
+PSD_Figures/
+figures/
+results/
+
+# General outputs
+outputs/*
+!outputs/.gitkeep
