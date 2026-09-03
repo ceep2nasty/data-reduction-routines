@@ -17,16 +17,26 @@ TopDir = 'C:\Users\coled_agkeohi\Notre Dame\Git\Peters-Lab-Work\AFOSR_HeatedCone
 cd(TopDir); addpath(genpath('Global_Routines'));
 
 % Working directory
-MainDir = 'C:\Users\coled_agkeohi\Notre Dame\Git\Peters-Lab-Work\AFOSR_HeatedCone_2026\Measurements\PCB';
+MainDir = 'C:\Users\coled_agkeohi\Notre Dame\Git\data-reduction-routines\workflows\campaigns\afosr_heated_cone\pcb';
 cd(MainDir)
 
 %Data loading directory
-dataTag = '\matlab_exports' ;
-LoadDataDir = strcat([MainDir, dataTag]);
+
+% Assuming work begins with converted .pnrf file - grab that parent
+converted_mats_path = 'C:\Users\coled_agkeohi\Notre Dame\PCB_test_workflow_data\matlab_exports' ;
+
+% add child folder containing exported matlab files
+LoadDataDir = converted_mats_path ;
 addpath(LoadDataDir)
+
+% add name of file of interest
+dataTag = 'alignment_60psi_feb2026.mat' ;
+
 %Figure path save
-saveTag = 'HCHC_90psi_figs';
-saveDir = [MainDir, '\Data\'];
+% saveTag will be the name of the file stored; saveDir is the directory it
+% will fall under
+saveTag = 'test1';
+saveDir = 'C:\Users\coled_agkeohi\Notre Dame\PCB_test_workflow_data\saved_pcb_figs';
 addpath(genpath(saveDir));
 %..........................................................................
 %Run plot preferences
@@ -34,11 +44,9 @@ UseFontSizeGloabl = 20; font_interp_fontsize
 
 %% LOAD: PCB data (v7.3 struct/cell style)
 close all; clc; cd(MainDir)
-
 TestNumber = '01';
-fname = fullfile(LoadDataDir, ['HCHC_90psi_feb2026', '.mat']);
-
-S = load(fname);   % <-- correct for .mat variables
+fname = fullfile(LoadDataDir, dataTag) ;
+S = load(fname);
 R = S.Perception_Raw ;
 
 % Select Desired Channels
@@ -47,8 +55,8 @@ R = S.Perception_Raw ;
 % Using channels (Ch C01 Ch C02 Ch D01) for alignment
 
 
-% PCB Array: PCB_MAT
-PCB_MAT = [R(3).channel(:,1:4), R(4).channel(:,1:4)];
+% PCB Array: all channels from the high-rate recorders.
+PCB_MAT = [R(3).channel, R(4).channel];
 Driver_Trigger = [R(1).channel(:, 1), R(2).channel(:,1)] ;
 
 % Trigger and Kulite Array: PCB_
@@ -58,7 +66,7 @@ fsamp = 2*10^6; %Sample frequency (Hz)
 fsamp_driver_trigger = 250*10^3; %250Hz sampling
 total_time = N/fsamp; %Total time with pr trigger (s)
 driver_time = N/fsamp_driver_trigger ;
-Time_array_PCB = R(3).time ;
+Time_array_PCB = R(3).time(:) ;
 Time_array_driver_trigger = R(1).time ;
 
 %% PLOT: Traces
@@ -202,7 +210,7 @@ ON_time_list = [ ...
     ];
 
 saveFig = 1;  % 1 = save outputs, 0 = just display
-saveFolder = fullfile([saveDir, saveTag]);
+saveFolder = fullfile(saveDir, saveTag);
 if saveFig && ~exist(saveFolder,'dir')
     mkdir(saveFolder);
 end
@@ -227,12 +235,13 @@ for kk = 1:size(ON_time_list,1)
 
     %Order the columns
 
-    cols = [1 2 3 4 5 6 7 8];
+    cols = 1:size(PCB_MAT, 2);
     numChannels = numel(cols) ;
-    Strings = {' PCB 1', ' PCB 2', ' PCB 3', ' PCB 4', ' PCB 5', ' PCB 6', ' PCB 7', ' PCB 8'};
+    Strings = arrayfun(@(channelNumber) sprintf(' PCB %d', channelNumber), ...
+        cols, 'UniformOutput', false);
 
     %Calibration constant
-    cons = [1 1 1 1 1 1 1 1];
+    cons = ones(1, numChannels);
 
     %Plot Noise------------------------------------------------------------------
     clear SavePCB_PSD_Noise
