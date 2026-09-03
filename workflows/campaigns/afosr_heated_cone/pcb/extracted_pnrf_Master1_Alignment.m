@@ -11,19 +11,16 @@ restoredefaultpath; clear; close all; clc
 %Description: This code is used for aligment with PCB sensors
 %--------------------------------------------------------------------------
 %--------------------------------------------------------------------------
-%Setup up all requierd directory paths.....................................
+%Setup up all required directory paths.....................................
 %Load in global routines
-TopDir = 'C:\Users\coled_agkeohi\Notre Dame\Git\Peters-Lab-Work\AFOSR_HeatedCone_2026\';
-cd(TopDir); addpath(genpath('Global_Routines'));
-
-% Working directory
-MainDir = 'C:\Users\coled_agkeohi\Notre Dame\Git\data-reduction-routines\workflows\campaigns\afosr_heated_cone\pcb';
-cd(MainDir)
-
+ScriptDir = fileparts(mfilename('fullpath'));
+RepoDir = 'C:\Users\coled\Notre Dame\Github\data-reduction-routines';
+assert(isfolder(RepoDir), 'Repository folder not found.')
+cd(RepoDir)
 %Data loading directory
 
 % Assuming work begins with converted .pnrf file - grab that parent
-converted_mats_path = 'C:\Users\coled_agkeohi\Notre Dame\PCB_test_workflow_data\matlab_exports' ;
+converted_mats_path = 'C:\Users\coled\Notre Dame\test_pcb_workflow\matlab_exports' ;
 
 % add child folder containing exported matlab files
 LoadDataDir = converted_mats_path ;
@@ -36,14 +33,20 @@ dataTag = 'alignment_60psi_feb2026.mat' ;
 % saveTag will be the name of the file stored; saveDir is the directory it
 % will fall under
 saveTag = 'test1';
-saveDir = 'C:\Users\coled_agkeohi\Notre Dame\PCB_test_workflow_data\saved_pcb_figs';
+saveDir = 'C:\Users\coled\Notre Dame\test_pcb_workflow\saved_pcb_figs';
+if ~isfolder(saveDir)
+    mkdir(saveDir);
+end
 addpath(genpath(saveDir));
 %..........................................................................
 %Run plot preferences
-UseFontSizeGloabl = 20; font_interp_fontsize
+GlobalDir = fullfile(RepoDir, 'matlab', 'global');
+addpath(genpath(GlobalDir));
+UseFontSizeGloabl = 20;
+run(fullfile(GlobalDir, 'plotting', 'font_interp_fontsize.m'));
 
 %% LOAD: PCB data (v7.3 struct/cell style)
-close all; clc; cd(MainDir)
+close all; clc; cd(RepoDir)
 TestNumber = '01';
 fname = fullfile(LoadDataDir, dataTag) ;
 S = load(fname);

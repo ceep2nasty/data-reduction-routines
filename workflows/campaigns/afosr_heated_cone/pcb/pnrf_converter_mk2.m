@@ -20,21 +20,20 @@ clear all
 clc
 close all
 
-if(~isdeployed)
-  cd(fileparts(matlab.desktop.editor.getActiveFilename));
-end
+thisFile = mfilename('fullpath');
 
-% Make sure to update this for the machine that you are working on.
-cd; 
+if ~isempty(thisFile)
+    cd(fileparts(thisFile));
+end
 
 % basepath is the parent directory of data, savepath
 basepath = cd; % Windows
 
 % datapath should be the path to raw pnrf files
-datapath = 'C:\Users\coled_agkeohi\Notre Dame\PCB_test_workflow_data\raw_pnrf_files';
+datapath = 'C:\Users\coled\Notre Dame\test_pcb_workflow\raw_pnrf_files';
 
 %savepath is the path you will send exported files to
-savepath = 'C:\Users\coled_agkeohi\Notre Dame\PCB_test_workflow_data' ;
+savepath = 'C:\Users\coled\Notre Dame\test_pcb_workflow' ;
 addpath(datapath);
 
 
@@ -53,7 +52,22 @@ end
 
 directory_status = mkdir(exportpath);
 cd(datapath)
-pnrf_converter(blocks,exportpath);
+
+cd(datapath);
+
+files = dir([blocks{1} '*.pNRF']);
+fprintf('Found %d PNRF files in:\n%s\n', numel(files), datapath);
+
+if isempty(files)
+    error('No PNRF files matched: %s*.pNRF', blocks{1});
+end
+
+if ~isfolder(exportpath)
+    mkdir(exportpath);
+end
+
+pnrf_converter(blocks, exportpath);
+
 cd(exportpath);
 
 
