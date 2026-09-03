@@ -26,9 +26,15 @@ end
 
 % Make sure to update this for the machine that you are working on.
 cd; 
+
+% basepath is the parent directory of data, savepath
 basepath = cd; % Windows
 
-datapath = [basepath '\raw_pnrf_files\']; % Windows
+% datapath should be the path to raw pnrf files
+datapath = 'C:\Users\coled_agkeohi\Notre Dame\PCB_test_workflow_data\raw_pnrf_files';
+
+%savepath is the path you will send exported files to
+savepath = 'C:\Users\coled_agkeohi\Notre Dame\PCB_test_workflow_data' ;
 addpath(datapath);
 
 
@@ -37,9 +43,14 @@ addpath(datapath);
 
 % This must be run on windows but can be commented out once the initial conversion is completed for operation on linux
 
-blocks = {'HCHC_90psi_feb2026'}; % This is a stand in until you collect the data
+blocks = {'alignment_60psi_feb2026'}; % This is a stand in until you collect the data
 
-exportpath = ([basepath '\matlab_exports\']);
+exportpath = ([savepath '\matlab_exports\']);
+
+if ~isfolder(exportpath)
+    mkdir(exportpath);
+end
+
 directory_status = mkdir(exportpath);
 cd(datapath)
 pnrf_converter(blocks,exportpath);
