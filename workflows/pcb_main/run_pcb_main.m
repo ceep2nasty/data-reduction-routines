@@ -18,7 +18,7 @@ addpath(functionDir);
 
 fprintf("PCB analysis workflow started\n");
 
-%% Configuration
+%% Configuration for converting or loading PCB data
 
 cfg = struct();
 
@@ -42,8 +42,7 @@ cfg.conversion.mode = "disk" ; % Choose "memory" or "disk" for conversion mode. 
 cfg.input.file = fullfile(cfg.output.dataFolder, ...
     "alignment_60psi_feb2026.mat"); % Specify the converted MAT file.
 
-
-fprintf("Configuration loaded\n");
+fprintf("Conversion configuration loaded\n");
 %% Convert or load PCB data
 switch string(cfg.input.source)
 
@@ -59,5 +58,49 @@ switch string(cfg.input.source)
         error('run_pcb_main:InvalidInputSource', ...
             'cfg.input.source must be "pnrf" or "mat".');
 end
-cfg.execution.extractChannels = false; % Set to true to extract channels from the PCB data
-cfg.execution.computePsd = false; % Set to true to compute the power spectral density of the PCB data
+
+%% Configuration for PCB channel extraction
+
+% Extraction channel selection
+cfg.analysis.driverChannel = "A01"; % Channel measuring driver tube pressure
+cfg.analysis.triggerChannels = "B01"; % Add the channels used as trigger
+cfg.analysis.dataChannels = ["C01", "C02", "D01"]; % Add the channels used for analysis
+
+% Sampling Rates
+cfg.analysis.driverSamplingRate = 250e3; % Sampling rate of the driver channel in Hz
+cfg.analysis.triggerSamplingRate = 250e3; % Add the sampling rate of the trigger channels in Hz
+cfg.analysis.dataSamplingRate = 2e6; % Add the sampling rate of the data
+
+% Extraction outputs
+cfg.analysis.extractChannels = true; % Set to true to label and extract the specified channels from the PCB data
+
+fprintf("Channel extraction configuration loaded\n");
+%% Run extraction on PCB data
+
+if cfg.analysis.extractChannels
+    fprintf("\n--- Extracting channels from PCB data ---\n");
+    [driverData, triggerData, dataData] = extractPcbChannels(cfg, pcbData);
+    fprintf("Channel extraction completed\n");
+end
+
+%% Configuration for PCB trace plotting
+
+% Plotting preferences
+cfg.plotting.fontSize = 25;
+cfg.plotting.timeMarker = 0.72;
+cfg.plotting.smoothData = true;
+cfg.plotting.figurePosition = [10 10 1000 625];
+
+% Trace plot outputs
+cfg.analysis.runTracePlots = true; % Set to true to generate trace plots for the selected channels
+
+% Choose whether to save the generated plots and specify the folder to save them
+cfg.plotting.savePlots = false; % Set to true to save the generated plots
+cfg.plotting.saveFolder = "C:\Users\coled\Notre Dame\test_pcb_workflow\trace_plots"; % Specify the folder to save the generated plots
+
+%% Run trace plotting on extracted PCB data
+if cfg.analysis.runTracePlots
+    fprintf("\n--- Generating trace plots for extracted PCB data ---\n");
+    figures = plotPcbTraces(cfg, dataData, triggerData, driverData);
+    fprintf("Trace plotting completed\n");
+end

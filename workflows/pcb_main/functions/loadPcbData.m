@@ -30,7 +30,7 @@ elseif isfield(loadedData, variableName)
     data.sourceVariable = string(variableName);
 else
     error('loadPcbData:MissingVariable', ...
-        'Neither "%s" nor "blockData" was found in %s.', variableName, filePath);
+        '"%s" not found in %s.', variableName, filePath);
 end
 
 fprintf('Loaded PCB data: %s\n', filePath);
