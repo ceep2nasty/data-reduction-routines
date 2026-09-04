@@ -3,9 +3,11 @@ clear; close all; clc
 
 %% Setup
 
+
 repoDir = "C:\Users\coled\Notre Dame\Github\data-reduction-routines"; % path to repository you should be working in
 scriptDir = fullfile(repoDir, "workflows", "pcb_main");
 functionDir = fullfile(scriptDir, "functions");
+globalDir = fullfile(repoDir, "matlab", "global");
 
 assert(isfolder(scriptDir), ...
     "PCB workflow folder does not exist: " + scriptDir);
@@ -15,6 +17,7 @@ assert(isfolder(functionDir), ...
 
 addpath(scriptDir);
 addpath(functionDir);
+addpath(genpath(globalDir));
 
 fprintf("PCB analysis workflow started\n");
 
@@ -103,4 +106,31 @@ if cfg.analysis.runTracePlots
     fprintf("\n--- Generating trace plots for extracted PCB data ---\n");
     figures = plotPcbTraces(cfg, dataData, triggerData, driverData);
     fprintf("Trace plotting completed\n");
+end
+
+%% Configuration for PCB spectrogram plotting
+
+cfg.analysis.runSpectrogram = true;
+cfg.analysis.plotSpectrogram = true;
+
+cfg.analysis.saveSpectrogramFolder = "C:\Users\coled\Notre Dame\test_pcb_workflow\spectrogram_plots"; % Specify the folder to save the generated spectrogram plots
+cfg.analysis.saveSpectrogram = true;
+
+cfg.spectrogram.windowLength = 1000;
+cfg.spectrogram.overlap = 0.75;
+cfg.spectrogram.frequencyBand = [50e3 300e3];
+cfg.spectrogram.colormap = "turbo";
+
+%% Compute spectrogram on extracted PCB data
+if cfg.analysis.runSpectrogram
+    fprintf("\n--- Generating spectrograms for extracted PCB data ---\n");
+    spectrogramResults = computePcbSpectrogram(cfg, dataData);
+    fprintf("Spectrogram computation completed\n");
+end
+
+%% Plot spectrograms for extracted PCB data
+if cfg.analysis.plotSpectrogram
+    fprintf("\n--- Plotting spectrograms for extracted PCB data ---\n");
+    spectrogramFig =plotPcbSpectrogram(cfg, spectrogramResults);
+    fprintf("Spectrogram plotting completed\n");
 end
