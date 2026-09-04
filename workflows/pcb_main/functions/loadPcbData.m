@@ -18,16 +18,20 @@ else
     variableName = 'Perception_Raw';
 end
 
-loadedData = load(filePath, variableName);
-if ~isfield(loadedData, variableName)
+loadedData = load(filePath);
+if isfield(loadedData, 'pcbData')
+    data = loadedData.pcbData;
+elseif isfield(loadedData, 'blockData')
+    data = loadedData.blockData;
+elseif isfield(loadedData, variableName)
+    data = struct();
+    data.raw = loadedData.(variableName);
+    data.sourceFile = string(filePath);
+    data.sourceVariable = string(variableName);
+else
     error('loadPcbData:MissingVariable', ...
-        'Variable "%s" was not found in %s.', variableName, filePath);
+        'Neither "%s" nor "blockData" was found in %s.', variableName, filePath);
 end
-
-data = struct();
-data.raw = loadedData.(variableName);
-data.sourceFile = string(filePath);
-data.sourceVariable = string(variableName);
 
 fprintf('Loaded PCB data: %s\n', filePath);
 end

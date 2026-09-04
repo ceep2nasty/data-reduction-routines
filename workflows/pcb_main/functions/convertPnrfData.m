@@ -1,4 +1,4 @@
-function conversion = convertPnrfData(cfg)
+function pcbData = convertPnrfData(cfg)
 %CONVERTPNRFDATA Convert Perception PNRF recordings to MAT-files.
 % Author: Cole Peters
 % Date created: 09/03/2026
@@ -14,124 +14,122 @@ end
 conversionMode = string(cfg.conversion.mode);
 
 if ~isscalar(conversionMode) || ...
-        ~ismember(conversionMode, ["memory", "disk", "both"])
+        ~ismember(conversionMode, ["memory", "disk"])
     error('convertPnrfData:InvalidMode', ...
-        'cfg.conversion.mode must be "memory", "disk", or "both".');
+        'cfg.conversion.mode must be "memory", "disk"');
 end
 
-saveConvertedData = ismember(conversionMode, ["disk", "both"]);
-returnConvertedData = ismember(conversionMode, ["memory", "both"]);
+saveConvertedData = ismember(conversionMode, "disk");
 
 
 if ~isfield(cfg, 'input') || ~isfield(cfg.input, 'rawFolder')
     error('convertPnrfData:MissingRawFolder', ...
         'Configuration must define cfg.input.rawFolder.');
 end
-if ~isfield(cfg.input, 'blocks') || isempty(cfg.input.blocks)
-    error('convertPnrfData:MissingBlocks', ...
-        'Configuration must define one or more cfg.input.blocks.');
+if ~isfield(cfg, 'channels') || ~isfield(cfg.channels, 'labels') || ...
+        isempty(cfg.channels.labels)
+    error('convertPnrfData:MissingRecorderLabels', ...
+        'Configuration must define cfg.channels.labels.');
 end
-if ~isfield(cfg, 'output') || ~isfield(cfg.output, 'dataFolder')
+if ~isfield(cfg.channels, 'maxPerRecorder') || ...
+        ~isscalar(cfg.channels.maxPerRecorder) || ...
+        cfg.channels.maxPerRecorder < 1 || ...
+        cfg.channels.maxPerRecorder ~= fix(cfg.channels.maxPerRecorder)
+    error('convertPnrfData:InvalidChannelsPerRecorder', ...
+        'cfg.channels.maxPerRecorder must be a positive integer.');
+end
+if ~isfield(cfg.input, 'rawFileName') || isempty(cfg.input.rawFileName)
+    error('convertPnrfData:MissingRawFileName', ...
+        'Configuration must define cfg.input.rawFileName.');
+end
+if saveConvertedData && ...
+        (~isfield(cfg, 'output') || ~isfield(cfg.output, 'dataFolder'))
     error('convertPnrfData:MissingDataFolder', ...
-        'Configuration must define cfg.output.dataFolder.');
+        'Configuration must define cfg.output.dataFolder if cfg.conversion.mode is "disk".');
 end
 
 rawFolder = char(cfg.input.rawFolder);
-dataFolder = char(cfg.output.dataFolder);
-blocks = cellstr(cfg.input.blocks);
+rawFileName = char(cfg.input.rawFileName);
+recorderLabels = string(cfg.channels.labels(:));
+maxRecorders = numel(recorderLabels);
+maxChannels = cfg.channels.maxPerRecorder;
+
+if numel(unique(recorderLabels)) ~= maxRecorders
+    error('convertPnrfData:DuplicateRecorderLabels', ...
+        'cfg.channels.labels must contain unique recorder labels.');
+end
 
 if ~isfolder(rawFolder)
     error('convertPnrfData:RawFolderNotFound', ...
         'PNRF input folder not found: %s', rawFolder);
 end
-if ~isfolder(dataFolder)
-    mkdir(dataFolder);
+
+if saveConvertedData && ~isfolder(cfg.output.dataFolder)
+    mkdir(cfg.output.dataFolder);
 end
+
+filePath = fullfile(rawFolder, rawFileName);
+if ~isfile(filePath)
+    error('convertPnrfData:RawFileNotFound', ...
+        'PNRF file not found: %s', filePath);
+end
+
+signalCount = maxRecorders * maxChannels;
+emptySignalData = struct('time', [], 'signal', []);
+pcbData = struct( ...
+    'channels', strings(signalCount, 1), ...
+    'signalData', repmat(emptySignalData, signalCount, 1));
+recordedSignalCount = 0;
 
 reader = actxserver('Perception.Loaders.pNRF');
 cleanupReader = onCleanup(@() delete(reader));
 
-emptyConversion = struct( ...
-    'blockName', "", ...
-    'raw', [], ...
-    'outputFile', "", ...
-    'recordingCount', 0);
-
-conversion = repmat(emptyConversion, numel(blocks), 1);
-
-for blockIndex = 1:numel(blocks)
-    blockName = blocks{blockIndex};
-    files = dir(fullfile(rawFolder, [blockName '*.pNRF']));
-    files = files(~[files.isdir]);
-
-    fprintf('Found %d PNRF files for block %s.\n', numel(files), blockName);
-    if isempty(files)
-        error('convertPnrfData:NoFilesFound', ...
-            'No PNRF files matched %s in %s.', blockName, rawFolder);
-    end
-
-    perceptionRaw = struct([]);
-    validRecordingCount = 0;
-
-    for recordingIndex = 1:numel(files)
-        recordingPath = fullfile(files(recordingIndex).folder, files(recordingIndex).name);
-        fprintf('Converting recording %d of %d: %s\n', ...
-            recordingIndex, numel(files), files(recordingIndex).name);
-
-        data = reader.LoadRecording(recordingPath);
-        for recorderIndex = 1:20
-            recorder = data.Recorders.Item(recorderIndex);
-            if isempty(recorder)
-                continue
-            end
-
-            channels = recorder.Channels;
-            for channelIndex = 1:20
-                channel = channels.Item(channelIndex);
-                if isempty(channel)
-                    continue
-                end
-
-                interfaceData = channel.DataSource(3);
-                sweeps = interfaceData.Sweeps;
-                segments = interfaceData.Data(sweeps.StartTime, sweeps.EndTime);
-                segment = segments.Item(1);
-                numberOfSamples = segment.NumberOfSamples;
-                waveformData = segment.Waveform(5, 1, numberOfSamples, 1)';
-
-                if ~any(waveformData)
-                    continue
-                end
-
-                endTime = segment.StartTime + ...
-                    (numberOfSamples - 1) * segment.SampleInterval;
-                time = segment.StartTime:segment.SampleInterval:endTime;
-                perceptionRaw(recordingIndex, recorderIndex).time = time;
-                perceptionRaw(recordingIndex, recorderIndex).channel(:, channelIndex) = waveformData;
-            end
+fprintf('Converting PNRF file: %s\n', rawFileName);
+data = reader.LoadRecording(filePath);
+for recorderIndex = 1:maxRecorders
+    for channelIndex = 1:maxChannels
+        recorder = data.Recorders.Item(recorderIndex);
+        if isempty(recorder)
+            continue
         end
-        validRecordingCount = validRecordingCount + 1;
+
+        channels = recorder.Channels;
+        channel = channels.Item(channelIndex);
+        if isempty(channel)
+            continue
+        end
+
+        interfaceData = channel.DataSource(3);
+        sweeps = interfaceData.Sweeps;
+        segments = interfaceData.Data(sweeps.StartTime, sweeps.EndTime);
+        segment = segments.Item(1);
+        numberOfSamples = segment.NumberOfSamples;
+        waveformData = segment.Waveform(5, 1, numberOfSamples, 1)';
+        if ~any(waveformData)
+            continue
+        end
+
+        endTime = segment.StartTime + ...
+            (numberOfSamples - 1) * segment.SampleInterval;
+        time = segment.StartTime:segment.SampleInterval:endTime;
+        recordedSignalCount = recordedSignalCount + 1;
+        pcbData.channels(recordedSignalCount) = recorderLabels(recorderIndex) + ...
+            compose('%02d', channelIndex);
+        pcbData.signalData(recordedSignalCount).time = time;
+        pcbData.signalData(recordedSignalCount).signal = waveformData;
     end
-
-    outputPath = "";
-if saveConvertedData
-    outputPath = string(fullfile(dataFolder, [blockName '.mat']));
-
-    Perception_Raw = perceptionRaw;
-    save(outputPath, 'Perception_Raw');
-
-    fprintf('Saved converted data to: %s\n', outputPath);
 end
 
-conversion(blockIndex).blockName = string(blockName);
-conversion(blockIndex).outputFile = outputPath;
-conversion(blockIndex).recordingCount = validRecordingCount;
+pcbData.channels = pcbData.channels(1:recordedSignalCount);
+pcbData.signalData = pcbData.signalData(1:recordedSignalCount);
 
-if returnConvertedData
-    conversion(blockIndex).raw = perceptionRaw;
+if saveConvertedData
+    [~, baseName] = fileparts(rawFileName);
+    outputPath = fullfile(cfg.output.dataFolder, [baseName '.mat']);
+    save(outputPath, 'pcbData', '-v7.3');
+    fprintf('Saved converted data to: %s\n', outputPath);
 end
 
 clear cleanupReader reader
 
-end
 

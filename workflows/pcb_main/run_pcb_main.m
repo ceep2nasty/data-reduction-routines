@@ -3,7 +3,7 @@ clear; close all; clc
 
 %% Setup
 
-repoDir = "C:\Users\coled_agkeohi\Notre Dame\Git\data-reduction-routines"; % path to repository you should be working in
+repoDir = "C:\Users\coled\Notre Dame\Github\data-reduction-routines"; % path to repository you should be working in
 scriptDir = fullfile(repoDir, "workflows", "pcb_main");
 functionDir = fullfile(scriptDir, "functions");
 
@@ -24,16 +24,24 @@ cfg = struct();
 
 % Determine if input source is .pnrf, or converted .mat
 
-cfg.input.source = "pnrf"; % Set to "pnrf" for raw .pnrf files, or "mat" for converted .mat files
+cfg.input.source = "mat"; % Set to "pnrf" for raw .pnrf files, or "mat" for converted .mat files
 
 % Input configuration for raw .pnrf files
-cfg.input.rawFolder = 'C:\Users\coled_agkeohi\Notre Dame\PCB_test_workflow_data\raw_pnrf_files'; % Add path to folder containing raw .pnrf files
-cfg.input.blocks = { 'alignment_60psi_feb2026'}; % Add cell array of block names corresponding to the raw .pnrf files
-cfg.output.dataFolder = 'C:\Users\coled_agkeohi\Notre Dame\PCB_test_workflow_data\matlab_exports'; % Add path to folder where converted .mat files will be saved. This folder will be created if it does not exist.
-cfg.conversion.mode = "memory" ; % Choose "memory", "disk", or "both"
+cfg.input.rawFolder = "C:\Users\coled\Notre Dame\test_pcb_workflow\raw_pnrf_files"; % Add path to folder containing raw .pnrf files
+cfg.input.rawFileName = 'alignment_60psi_feb2026.pNRF'; % Add the exact raw .pnrf filename
 
-% Input configuration for the exported .mat files
-cfg.input.variable = "Perception_Raw"; % Specify the variable name in the .mat file containing the raw perception data
+% Input naming rules for recorder channels on DAQ
+
+cfg.channels.labels = ["A", "B", "C", "D"]; % Add recorder labels in Perception recorder order
+cfg.channels.maxPerRecorder = 8; % Add the maximum number of channels per recorder
+
+cfg.output.dataFolder = "C:\Users\coled\Notre Dame\test_pcb_workflow\matlab_exports"; % Add path to folder where converted .mat files will be saved. This folder will be created if it does not exist.
+cfg.conversion.mode = "disk" ; % Choose "memory" or "disk" for conversion mode. "memory" will return the converted data in memory, while "disk" will save the converted data to disk and return the file path.
+
+% Input configuration for saved .mat files
+cfg.input.file = fullfile(cfg.output.dataFolder, ...
+    "alignment_60psi_feb2026.mat"); % Specify the converted MAT file.
+
 
 fprintf("Configuration loaded\n");
 %% Convert or load PCB data
@@ -41,19 +49,8 @@ switch string(cfg.input.source)
 
     case "pnrf"
         fprintf("\n--- Converting PNRF data ---\n");
-        conversion = convertPnrfData(cfg);
+        pcbData = convertPnrfData(cfg);
         fprintf("PNRF data converted\n");
-
-        if ismember(string(cfg.conversion.mode), ["disk", "both"])
-            cfg.input.file = conversion(1).outputFile;
-            pcbData = loadPcbData(cfg);
-        else
-            pcbData = struct();
-            pcbData.raw = conversion(1).raw;
-            pcbData.sourceFile = "memory";
-            pcbData.sourceVariable = cfg.input.variable;
-        end
-
     case "mat"
         fprintf("\n--- Loading previous MAT data ---\n");
         pcbData = loadPcbData(cfg);
