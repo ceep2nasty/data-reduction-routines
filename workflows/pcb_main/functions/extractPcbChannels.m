@@ -60,6 +60,39 @@ if cfg.analysis.extractChannels
         end
     end
 
+    % Use one relative time base for all extracted channels.
+    timeOrigin = inf;
+    dataSets = {driverData, triggerData, dataData};
+
+    for dataSetIndex = 1:numel(dataSets)
+        dataSet = dataSets{dataSetIndex};
+
+        for dataSetTimeIndex = 1:numel(dataSet.time)
+            if ~isempty(dataSet.time{dataSetTimeIndex})
+                timeOrigin = min( ...
+                    timeOrigin, dataSet.time{dataSetTimeIndex}(1));
+            end
+        end
+    end
+
+    if isfinite(timeOrigin)
+        driverData.time = shiftTimes(driverData.time, timeOrigin);
+        triggerData.time = shiftTimes(triggerData.time, timeOrigin);
+        dataData.time = shiftTimes(dataData.time, timeOrigin);
+    end
+
 end
 
+function shiftedTimes = shiftTimes(times, timeOrigin)
+
+shiftedTimes = times;
+
+for timeEntryIndex = 1:numel(times)
+    if ~isempty(times{timeEntryIndex})
+        shiftedTimes{timeEntryIndex} = ...
+            times{timeEntryIndex} - timeOrigin;
+    end
+end
+
+end
 end

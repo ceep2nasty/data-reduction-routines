@@ -18,6 +18,10 @@ function spectrogramResults = computePcbSpectrogram(cfg, dataData)
         cfg.spectrogram.overlap, ...
         cfg.spectrogram.colormap, ...
         cfg.spectrogram.frequencyBand);
+
+        if ~isempty(time)
+            time = time - time(1);
+        end
         
         spectrogramResults.time{i} = time;
         spectrogramResults.frequency{i} = frequency;

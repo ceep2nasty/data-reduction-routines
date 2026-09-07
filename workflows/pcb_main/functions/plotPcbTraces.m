@@ -10,22 +10,6 @@ plotDriverData = driverData;
 plotDataData = dataData;
 plotTriggerData = triggerData;
 
-% Reset to relative time.
-for i = 1:length(plotDriverData.channels)
-    plotDriverData.time{i} = ...
-        plotDriverData.time{i} - plotDriverData.time{i}(1);
-end
-
-for i = 1:length(plotDataData.channels)
-    plotDataData.time{i} = ...
-        plotDataData.time{i} - plotDataData.time{i}(1);
-end
-
-for i = 1:length(plotTriggerData.channels)
-    plotTriggerData.time{i} = ...
-        plotTriggerData.time{i} - plotTriggerData.time{i}(1);
-end
-
 if cfg.plotting.smoothData
     for i = 1:length(plotDriverData.channels)
         plotDriverData.signal{i} = smooth(plotDriverData.signal{i});

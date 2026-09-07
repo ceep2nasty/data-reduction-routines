@@ -84,36 +84,94 @@ fprintf("Channel extraction configuration loaded\n");
 if cfg.analysis.extractChannels
     fprintf("\n--- Extracting channels from PCB data ---\n");
     [driverData, triggerData, dataData] = extractPcbChannels(cfg, pcbData);
+
+    % Enforce one relative time base for all downstream reports.
+    extractedData = {driverData, triggerData, dataData};
+    timeOrigin = inf;
+
+    for dataSetIndex = 1:numel(extractedData)
+        for timeIndex = 1:numel(extractedData{dataSetIndex}.time)
+            timeValues = extractedData{dataSetIndex}.time{timeIndex};
+
+            if ~isempty(timeValues)
+                timeOrigin = min(timeOrigin, timeValues(1));
+            end
+        end
+    end
+
+    if isfinite(timeOrigin)
+        for dataSetIndex = 1:numel(extractedData)
+            for timeIndex = 1:numel(extractedData{dataSetIndex}.time)
+                timeValues = extractedData{dataSetIndex}.time{timeIndex};
+
+                if ~isempty(timeValues)
+                    extractedData{dataSetIndex}.time{timeIndex} = ...
+                        timeValues - timeOrigin;
+                end
+            end
+        end
+    end
+
+    driverData = extractedData{1};
+    triggerData = extractedData{2};
+    dataData = extractedData{3};
     fprintf("Channel extraction completed\n");
+end
+
+
+%% Configuration for PCB trace plotting
+
+% Plotting preferences
+cfg.plotting.fontSize = 25;
+cfg.plotting.timeMarker = 0.72;
+cfg.plotting.smoothData = true;
+cfg.plotting.figurePosition = [10 10 1000 625];
+
+% Trace plot outputs
+cfg.analysis.runTracePlots = true; % Set to true to generate trace plots for the selected channels
+cfg.analysis.runQuasiSteadyTracePlots = true;
+
+% Choose whether to save the generated plots and specify the folder to save them
+cfg.plotting.savePlots = true; % Set to true to save the generated plots
+cfg.plotting.saveFolder = "C:\Users\coled\Notre Dame\test_pcb_workflow\trace_plots"; % Specify the folder to save the generated plots
+
+%% Run trace plotting on extracted PCB data
+if cfg.analysis.runTracePlots
+    fprintf("\n--- Generating trace plots for extracted PCB data ---\n");
+    figures = plotPcbTraces(cfg, dataData, triggerData, driverData);
+    fprintf("Trace plotting completed\n");
 end
 
 %% Configuration for quasi-steady flow detection
 
 cfg.analysis.findQuasiSteadyWindow = true;
 
-% Fraction of the record used to estimate quiet baselines
-cfg.timing.baselineFraction = 0.10;
+% Set trigger detection parameters for quasi-steady flow detection
+cfg.timing.triggerThreshold = 2.5; % min. voltage to detect trigger
+cfg.timing.triggerHysteresis = 2.3; % min. voltage to maintain trigger
+cfg.timing.triggerHoldTime = 0.002; % min. time to hold trigger for valid detection
 
-% Trigger/event detection
-cfg.timing.eventThresholdMultiplier = 8;
-cfg.timing.persistenceTime = 0.002;
+% Set driver tube detection parameters for quasi-steady flow detection
+cfg.timing.driverFlatWindow = 0.050; % duration used to estimate local slope
+cfg.timing.driverFlatHoldTime = 0.050; % how long it must remain flat
+cfg.timing.driverFlatSlopeThreshold = 0.10; % maximum allowed pressure signal slope
+cfg.timing.driverFlatNoiseThreshold = 0.010; % maximum allowed pressure signal noise around local linear fit
 
-% Delay after shock arrival before spectral analysis begins
-cfg.timing.settlingDelay = 0.010;
+% PCB fluctuation detection
+cfg.timing.pcbAnalysisChannel = "C02";
+cfg.timing.pcbFluctuationWindow = 0.002;
+cfg.timing.pcbReferenceDuration = 0.050;
+cfg.timing.pcbReferenceGap = 0.010;
+cfg.timing.pcbMinimumStartDuration = 0.050;
+cfg.timing.pcbUnstartHoldTime = 0.020;
+cfg.timing.pcbModerateLowerRatio = 1.5;
+cfg.timing.pcbUnstartRatio = 4.0;
 
-% Window used to estimate normal post-start PCB fluctuations
-cfg.timing.referenceDuration = 0.020;
+% Driver-state labeling
+cfg.timing.driverDescendingSlopeThreshold = 0.10;
 
-% Moving fluctuation estimate
-cfg.timing.fluctuationWindow = 0.002;
 
-% Unstart threshold relative to normal post-start fluctuations
-cfg.timing.unstartMultiplier = 4;
-
-% Driver plateau detection
-cfg.timing.driverLevelFraction = 0.20;
-cfg.timing.driverSlopeMultiplier = 5;
-
+fprintf("Quasi-steady flow detection configuration loaded\n");
 %% Detect quasi-steady flow interval
 
 steadyWindow = struct( ...
@@ -138,28 +196,38 @@ if cfg.analysis.findQuasiSteadyWindow
 
     fprintf("Estimated duration: %.6f s\n", ...
         steadyWindow.endTime - steadyWindow.startTime);
-end
-%% Configuration for PCB trace plotting
 
-% Plotting preferences
-cfg.plotting.fontSize = 25;
-cfg.plotting.timeMarker = 0.72;
-cfg.plotting.smoothData = true;
-cfg.plotting.figurePosition = [10 10 1000 625];
+    fprintf("Trigger threshold time: %.6f s\n", ...
+        timingDiagnostics.triggerTime);
+    fprintf("PCB analysis channel: %s\n", ...
+        timingDiagnostics.pcbChannel);
+    fprintf("PCB reference fluctuation: %.6g\n", ...
+        timingDiagnostics.pcbReferenceLevel);
+    fprintf("First valid PCB-qualified start: %.6f s\n", ...
+        timingDiagnostics.pcbFirstValidStart);
+    fprintf("First sustained PCB unstart: %.6f s\n", ...
+        timingDiagnostics.pcbFirstUnstart);
 
-% Trace plot outputs
-cfg.analysis.runTracePlots = true; % Set to true to generate trace plots for the selected channels
-cfg.analysis.runQuasiSteadyTracePlots = true;
+    fprintf("\nDriver flat windows:\n");
 
-% Choose whether to save the generated plots and specify the folder to save them
-cfg.plotting.savePlots = true; % Set to true to save the generated plots
-cfg.plotting.saveFolder = "C:\Users\coled\Notre Dame\test_pcb_workflow\trace_plots"; % Specify the folder to save the generated plots
+    for windowIndex = 1:numel(timingDiagnostics.driverFlatWindows)
+        driverWindow = timingDiagnostics.driverFlatWindows(windowIndex);
 
-%% Run trace plotting on extracted PCB data
-if cfg.analysis.runTracePlots
-    fprintf("\n--- Generating trace plots for extracted PCB data ---\n");
-    figures = plotPcbTraces(cfg, dataData, triggerData, driverData);
-    fprintf("Trace plotting completed\n");
+        fprintf("  %d: %.6f to %.6f s (duration %.6f s)\n", ...
+            windowIndex, ...
+            driverWindow.startTime, ...
+            driverWindow.endTime, ...
+            driverWindow.endTime - driverWindow.startTime);
+    end
+
+    if isempty(timingDiagnostics.driverFlatWindows)
+        fprintf("  none detected\n");
+    end
+
+    fprintf("Driver state samples: flat=%d, descending=%d, other=%d\n", ...
+        nnz(timingDiagnostics.driverState == "flat"), ...
+        nnz(timingDiagnostics.driverState == "descending"), ...
+        nnz(timingDiagnostics.driverState == "other"));
 end
 
 %% Run quasi-steady trace plotting and prepare steady analysis data
