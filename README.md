@@ -16,3 +16,7 @@ Raw experimental measurements are intentionally excluded from this repository. T
 - `outputs/` - generated analysis products
 - `examples/` - small example/reference cases
 - `docs/` - documentation
+
+For the current modular PCB workflow state, function interfaces, and planned
+second-mode tracking/alignment work, see
+[`docs/pcb_workflow_context.md`](docs/pcb_workflow_context.md).
