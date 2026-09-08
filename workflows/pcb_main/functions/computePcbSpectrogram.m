@@ -1,8 +1,4 @@
-function spectrogramResults = computePcbSpectrogram(cfg, dataData, outputLabel)
-    if nargin < 3 || isempty(outputLabel)
-        outputLabel = "spectrogram";
-    end
-
+function spectrogramResults = computePcbSpectrogram(cfg, dataData)
     % Initialize the output structure
     spectrogramResults = struct();
 
@@ -23,8 +19,10 @@ function spectrogramResults = computePcbSpectrogram(cfg, dataData, outputLabel)
         cfg.spectrogram.colormap, ...
         cfg.spectrogram.frequencyBand);
 
-        if ~isempty(time)
-            time = time - time(1);
+        if ~isempty(time) && ~isempty(dataData.time{i})
+            % Spectrogram returns time relative to the supplied signal.
+            % Restore the signal's experiment-relative time coordinate.
+            time = time + dataData.time{i}(1);
         end
         
         spectrogramResults.time{i} = time;
@@ -33,18 +31,5 @@ function spectrogramResults = computePcbSpectrogram(cfg, dataData, outputLabel)
 
     end
 
-    % save outputs
-    if cfg.analysis.saveSpectrogram
-        saveFolder = cfg.analysis.saveSpectrogramFolder;
-        if ~exist(saveFolder, 'dir')
-            mkdir(saveFolder);
-        end
-        saveFileName = fullfile( ...
-            saveFolder, ...
-            outputLabel + "SpectrogramResults.mat");
-        save(saveFileName, 'spectrogramResults');
-        fprintf("Spectrogram results saved to %s\n", saveFileName);
-    end
-    
     fprintf("Spectrogram computation completed for %d channels\n", length(dataData.channels));
 end

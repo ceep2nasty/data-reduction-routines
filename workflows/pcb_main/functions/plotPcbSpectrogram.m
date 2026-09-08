@@ -27,8 +27,8 @@ function spectrogramFig = plotPcbSpectrogram(cfg, spectrogramResults, outputLabe
     ylim(cfg.spectrogram.frequencyBand / 1e3);
     end
 
-    if cfg.analysis.saveSpectrogram
-        saveFolder = cfg.analysis.saveSpectrogramFolder;
+    if cfg.output.saveSpectrogramPlots
+        saveFolder = cfg.output.spectrogramFolder;
         if ~exist(saveFolder, 'dir')
             mkdir(saveFolder);
         end

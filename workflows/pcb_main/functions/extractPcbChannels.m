@@ -1,98 +1,66 @@
-function [driverData, triggerData, dataData] = extractPcbChannels(cfg, pcbData)
-%EXTRACTPCBCHANNELS Extracts specified channels from PCB data for analysis.
+function [driverData, triggerData, dataData] = ...
+    extractPcbChannels(cfg, pcbData)
+%EXTRACTPCBCHANNELS Extract configured channels onto one relative time base.
 
-if cfg.analysis.extractChannels
-    driverData = struct('channels', "", 'time', [], 'signal', [], 'samplingRate', []);
-    triggerData = struct('channels', "", 'time', [], 'signal', [], 'samplingRate', []);
-    dataData = struct('channels', "", 'time', [], 'signal', [], 'samplingRate', []);
+availableChannels = string(pcbData.channels(:));
+requestedChannels = [string(cfg.channels.driver); ...
+    string(cfg.channels.trigger(:)); string(cfg.channels.data(:))];
+missingChannels = setdiff(requestedChannels, availableChannels);
+if ~isempty(missingChannels)
+    error('extractPcbChannels:MissingChannels', ...
+        'Requested channel(s) not found: %s', ...
+        strjoin(missingChannels, ', '));
+end
 
-    driverChannel = cfg.analysis.driverChannel;
-    triggerChannels = cfg.analysis.triggerChannels;
-    dataChannels = cfg.analysis.dataChannels;
+driverData = extractGroup( ...
+    string(cfg.channels.driver), cfg.channels.driverSamplingRate, ...
+    pcbData);
+triggerData = extractGroup( ...
+    string(cfg.channels.trigger(:)), cfg.channels.triggerSamplingRate, ...
+    pcbData);
+dataData = extractGroup( ...
+    string(cfg.channels.data(:)), cfg.channels.dataSamplingRate, ...
+    pcbData);
 
-    driverSamplingRate = cfg.analysis.driverSamplingRate;
-    triggerSamplingRate = cfg.analysis.triggerSamplingRate;
-    dataSamplingRate = cfg.analysis.dataSamplingRate;
+timeOrigin = min([firstTimes(driverData), ...
+    firstTimes(triggerData), firstTimes(dataData)]);
+driverData.time = shiftTimes(driverData.time, timeOrigin);
+triggerData.time = shiftTimes(triggerData.time, timeOrigin);
+dataData.time = shiftTimes(dataData.time, timeOrigin);
+end
 
-    % Label channels by their analysis role.
-    driverData.channels = driverChannel;
-    triggerData.channels = triggerChannels;
-    dataData.channels = dataChannels;
+function group = extractGroup(channels, samplingRate, pcbData)
+group = struct();
+group.channels = channels;
+group.time = cell(size(channels));
+group.signal = cell(size(channels));
+group.samplingRate = samplingRate;
 
-    % Assign sampling rates to the output structures
-    driverData.samplingRate = driverSamplingRate;
-    triggerData.samplingRate = triggerSamplingRate;
-    dataData.samplingRate = dataSamplingRate;
-
-    % Extract the driver channel.
-    channelIndex = find(pcbData.channels == driverChannel, 1);
-    if ~isempty(channelIndex)
-        driverData.time{1} = pcbData.signalData(channelIndex).time;
-        driverData.signal{1} = pcbData.signalData(channelIndex).signal;
-    else
-        warning('Channel %s not found in PCB data.', driverChannel);
+availableChannels = string(pcbData.channels(:));
+for channelIndex = 1:numel(channels)
+    sourceIndex = find(availableChannels == channels(channelIndex), 1);
+    group.time{channelIndex} = ...
+        pcbData.signalData(sourceIndex).time(:);
+    group.signal{channelIndex} = ...
+        pcbData.signalData(sourceIndex).signal(:);
+    if numel(group.time{channelIndex}) ~= numel(group.signal{channelIndex})
+        error('extractPcbChannels:TimeSignalMismatch', ...
+            'Channel %s has different time and signal lengths.', ...
+            channels(channelIndex));
     end
+end
+end
 
-    % Extract trigger channels.
-    for i = 1:length(triggerChannels)
-        channelLabel = triggerChannels(i);
-        channelIndex = find(pcbData.channels == channelLabel, 1);
-
-        if ~isempty(channelIndex)
-            triggerData.time{i} = pcbData.signalData(channelIndex).time;
-            triggerData.signal{i} = pcbData.signalData(channelIndex).signal;
-        else
-            warning('Channel %s not found in PCB data.', channelLabel);
-        end
-        
-    end
-
-    % Extract data channels.
-    for i = 1:length(dataChannels)
-        channelLabel = dataChannels(i);
-        channelIndex = find(pcbData.channels == channelLabel, 1);
-
-        if ~isempty(channelIndex)
-            dataData.time{i} = pcbData.signalData(channelIndex).time;
-            dataData.signal{i} = pcbData.signalData(channelIndex).signal;
-        else
-            warning('Channel %s not found in PCB data.', channelLabel);
-        end
-    end
-
-    % Use one relative time base for all extracted channels.
-    timeOrigin = inf;
-    dataSets = {driverData, triggerData, dataData};
-
-    for dataSetIndex = 1:numel(dataSets)
-        dataSet = dataSets{dataSetIndex};
-
-        for dataSetTimeIndex = 1:numel(dataSet.time)
-            if ~isempty(dataSet.time{dataSetTimeIndex})
-                timeOrigin = min( ...
-                    timeOrigin, dataSet.time{dataSetTimeIndex}(1));
-            end
-        end
-    end
-
-    if isfinite(timeOrigin)
-        driverData.time = shiftTimes(driverData.time, timeOrigin);
-        triggerData.time = shiftTimes(triggerData.time, timeOrigin);
-        dataData.time = shiftTimes(dataData.time, timeOrigin);
-    end
-
+function values = firstTimes(data)
+values = nan(1, numel(data.time));
+for index = 1:numel(data.time)
+    values(index) = data.time{index}(1);
+end
 end
 
 function shiftedTimes = shiftTimes(times, timeOrigin)
-
 shiftedTimes = times;
-
-for timeEntryIndex = 1:numel(times)
-    if ~isempty(times{timeEntryIndex})
-        shiftedTimes{timeEntryIndex} = ...
-            times{timeEntryIndex} - timeOrigin;
-    end
-end
-
+for index = 1:numel(times)
+    shiftedTimes{index} = times{index} - timeOrigin;
 end
 end

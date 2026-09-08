@@ -319,6 +319,10 @@ function [flatStartTime, flatEndTime, flatWindows] = ...
         flatMask & ...
         [~flatMask(2:end); true]);
 
+    candidateFlatWindows = repmat(struct( ...
+        'startTime', NaN, 'endTime', NaN), numel(runStartIndices), 1);
+    acceptedWindowCount = 0;
+
     for runIndex = 1:numel(runStartIndices)
 
         runStartIndex = runStartIndices(runIndex);
@@ -332,9 +336,12 @@ function [flatStartTime, flatEndTime, flatWindows] = ...
             triggerTime, ...
             time(runStartIndex) - flatWindow);
 
-        flatWindows(end + 1).startTime = windowStartTime;
-        flatWindows(end).endTime = time(runEndIndex);
+        acceptedWindowCount = acceptedWindowCount + 1;
+        candidateFlatWindows(acceptedWindowCount).startTime = windowStartTime;
+        candidateFlatWindows(acceptedWindowCount).endTime = time(runEndIndex);
     end
+
+    flatWindows = candidateFlatWindows(1:acceptedWindowCount);
 
     if isempty(flatWindows)
         return

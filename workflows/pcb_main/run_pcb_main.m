@@ -1,386 +1,331 @@
-%% PCB analysis workflow
-clear; close all; clc
+function results = run_pcb_main(cfgInput)
+%RUN_PCB_MAIN Run the packaged PCB analysis workflow.
+%
+%   results = run_pcb_main(cfg)
+%   results = run_pcb_main("case_cfg.mat")
 
-%% Setup
+if nargin < 1
+    error('run_pcb_main:MissingConfiguration', ...
+        'Pass a configuration struct or a MAT-file containing cfg.');
+end
 
+[cfg, configurationFile] = loadConfiguration(cfgInput);
 
-repoDir = "C:\\Users\\coled_agkeohi\\Notre Dame\Git\data-reduction-routines"; % path to repository you should be working in
-scriptDir = fullfile(repoDir, "workflows", "pcb_main");
-functionDir = fullfile(scriptDir, "functions");
-globalDir = fullfile(repoDir, "matlab", "global");
-
-assert(isfolder(scriptDir), ...
-    "PCB workflow folder does not exist: " + scriptDir);
+scriptDir = fileparts(mfilename('fullpath'));
+repoDir = fileparts(fileparts(scriptDir));
+functionDir = fullfile(scriptDir, 'functions');
+globalDir = fullfile(repoDir, 'matlab', 'global');
 
 assert(isfolder(functionDir), ...
-    "PCB functions folder does not exist: " + functionDir);
+    'PCB functions folder does not exist: %s', functionDir);
+assert(isfolder(globalDir), ...
+    'Global MATLAB folder does not exist: %s', globalDir);
 
-addpath(scriptDir);
 addpath(functionDir);
 addpath(genpath(globalDir));
+validatePcbConfig(cfg);
 
-fprintf("PCB analysis workflow started\n");
+additionalFolders = string(cfg.paths.additionalFolders(:));
+additionalFolders(additionalFolders == "") = [];
+for folder = additionalFolders.'
+    addpath(genpath(folder));
+end
 
-%% Configuration for converting or loading PCB data
+if cfg.run.closeFiguresAtStart
+    close all;
+end
 
-cfg = struct();
+stages = resolveStages(cfg);
+results = initializeResults(cfg, configurationFile, stages);
 
-% Determine if input source is .pnrf, or converted .mat
+fprintf('PCB analysis workflow started\n');
 
-cfg.input.source = "pnrf"; % Set to "pnrf" for raw .pnrf files, or "mat" for converted .mat files
+%% Load or convert the source data
 
-% Input configuration for raw .pnrf files
-cfg.input.rawFolder = "C:\Users\coled_agkeohi\Notre Dame\PCB_test_workflow_data\raw_pnrf_files";
-cfg.input.rawFileName = 'alignment_60psi_feb2026.pNRF'; % Add the exact raw .pnrf filename
-
-% Input naming rules for recorder channels on DAQ
-
-cfg.channels.labels = ["A", "B", "C", "D"]; % Add recorder labels in Perception recorder order
-cfg.channels.maxPerRecorder = 8; % Add the maximum number of channels per recorder
-
-cfg.output.dataFolder = "C:\Users\coled_agkeohi\Notre Dame\PCB_test_workflow_data\matlab_exports"; % Add path to folder where converted .mat files will be saved. This folder will be created if it does not exist.
-cfg.conversion.mode = "disk" ; % Choose "memory" or "disk" for conversion mode. "memory" will return the converted data in memory, while "disk" will save the converted data to disk and return the file path.
-
-% Input configuration for saved .mat files
-cfg.input.file = fullfile(cfg.output.dataFolder, ...
-    "alignment_60psi_feb2026.mat"); % Specify the converted MAT file.
-
-fprintf("Conversion configuration loaded\n");
-%% Convert or load PCB data
 switch string(cfg.input.source)
-
     case "pnrf"
-        fprintf("\n--- Converting PNRF data ---\n");
+        fprintf('\n--- Converting PNRF data ---\n');
         pcbData = convertPnrfData(cfg);
-        fprintf("PNRF data converted\n");
     case "mat"
-        fprintf("\n--- Loading previous MAT data ---\n");
+        fprintf('\n--- Loading MAT data ---\n');
         pcbData = loadPcbData(cfg);
-        
-    otherwise
-        error('run_pcb_main:InvalidInputSource', ...
-            'cfg.input.source must be "pnrf" or "mat".');
+end
+results.pcbData = pcbData;
+results.stageStatus.inputLoaded = true;
+
+%% Extract required channels
+
+fprintf('\n--- Extracting configured channels ---\n');
+[driverData, triggerData, dataData] = ...
+    extractPcbChannels(cfg, pcbData);
+results.driverData = driverData;
+results.triggerData = triggerData;
+results.dataData = dataData;
+results.stageStatus.channelsExtracted = true;
+
+%% Full-record trace plots
+
+if cfg.run.fullTracePlots
+    fprintf('\n--- Plotting full-record traces ---\n');
+    results.figures.fullTraces = plotPcbTraces( ...
+        cfg, dataData, triggerData, driverData);
+    results.stageStatus.fullTracePlots = true;
 end
 
-%% Configuration for PCB channel extraction
+%% Quasi-steady timing detection and data selection
 
-% Extraction channel selection
-cfg.analysis.driverChannel = "A01"; % Channel measuring driver tube pressure
-cfg.analysis.triggerChannels = "B01"; % Add the channels used as trigger
-cfg.analysis.dataChannels = ["C01", "C02", "D01"]; % Add the channels used for analysis
-
-% Sampling Rates
-cfg.analysis.driverSamplingRate = 250e3; % Sampling rate of the driver channel in Hz
-cfg.analysis.triggerSamplingRate = 250e3; % Add the sampling rate of the trigger channels in Hz
-cfg.analysis.dataSamplingRate = 2e6; % Add the sampling rate of the data
-
-% Extraction outputs
-cfg.analysis.extractChannels = true; % Set to true to label and extract the specified channels from the PCB data
-
-fprintf("Channel extraction configuration loaded\n");
-
-%% Run extraction on PCB data
-
-if cfg.analysis.extractChannels
-    fprintf("\n--- Extracting channels from PCB data ---\n");
-    [driverData, triggerData, dataData] = extractPcbChannels(cfg, pcbData);
-
-    % Enforce one relative time base for all downstream reports.
-    extractedData = {driverData, triggerData, dataData};
-    timeOrigin = inf;
-
-    for dataSetIndex = 1:numel(extractedData)
-        for timeIndex = 1:numel(extractedData{dataSetIndex}.time)
-            timeValues = extractedData{dataSetIndex}.time{timeIndex};
-
-            if ~isempty(timeValues)
-                timeOrigin = min(timeOrigin, timeValues(1));
-            end
-        end
-    end
-
-    if isfinite(timeOrigin)
-        for dataSetIndex = 1:numel(extractedData)
-            for timeIndex = 1:numel(extractedData{dataSetIndex}.time)
-                timeValues = extractedData{dataSetIndex}.time{timeIndex};
-
-                if ~isempty(timeValues)
-                    extractedData{dataSetIndex}.time{timeIndex} = ...
-                        timeValues - timeOrigin;
-                end
-            end
-        end
-    end
-
-    driverData = extractedData{1};
-    triggerData = extractedData{2};
-    dataData = extractedData{3};
-    fprintf("Channel extraction completed\n");
-end
-
-
-%% Configuration for PCB trace plotting
-
-% Plotting preferences
-cfg.plotting.fontSize = 25;
-cfg.plotting.timeMarker = 0.72;
-cfg.plotting.smoothData = true;
-cfg.plotting.figurePosition = [10 10 1000 625];
-
-% Trace plot outputs
-cfg.analysis.runTracePlots = true; % Set to true to generate trace plots for the selected channels
-cfg.analysis.runQuasiSteadyTracePlots = true;
-
-% Choose whether to save the generated plots and specify the folder to save them
-cfg.plotting.savePlots = true; % Set to true to save the generated plots
-cfg.plotting.saveFolder = "C:\Users\coled_agkeohi\Notre Dame\PCB_test_workflow_data\saved_pcb_figs" ; % Specify the folder to save the generated plots
-
-%% Run trace plotting on extracted PCB data
-if cfg.analysis.runTracePlots
-    fprintf("\n--- Generating trace plots for extracted PCB data ---\n");
-    figures = plotPcbTraces(cfg, dataData, triggerData, driverData);
-    fprintf("Trace plotting completed\n");
-end
-
-%% Configuration for quasi-steady flow detection
-
-cfg.analysis.findQuasiSteadyWindow = true;
-
-% Set trigger detection parameters for quasi-steady flow detection
-cfg.timing.triggerThreshold = 2.5; % min. voltage to detect trigger
-cfg.timing.triggerHysteresis = 2.3; % min. voltage to maintain trigger
-cfg.timing.triggerHoldTime = 0.002; % min. time to hold trigger for valid detection
-
-% Set driver tube detection parameters for quasi-steady flow detection
-cfg.timing.driverFlatWindow = 0.050; % duration used to estimate local slope
-cfg.timing.driverFlatHoldTime = 0.050; % how long it must remain flat
-cfg.timing.driverFlatSlopeThreshold = 0.10; % maximum allowed pressure signal slope
-cfg.timing.driverFlatNoiseThreshold = 0.010; % maximum allowed pressure signal noise around local linear fit
-
-% PCB fluctuation detection
-cfg.timing.pcbAnalysisChannel = "C02";
-cfg.timing.pcbFluctuationWindow = 0.002;
-cfg.timing.pcbReferenceDuration = 0.050;
-cfg.timing.pcbReferenceGap = 0.010;
-cfg.timing.pcbMinimumStartDuration = 0.050;
-cfg.timing.pcbUnstartHoldTime = 0.020;
-cfg.timing.pcbModerateLowerRatio = 1.5;
-cfg.timing.pcbUnstartRatio = 4.0;
-
-% Driver-state labeling
-cfg.timing.driverDescendingSlopeThreshold = 0.10;
-
-
-fprintf("Quasi-steady flow detection configuration loaded\n");
-%% Detect quasi-steady flow interval
-
-steadyWindow = struct( ...
-    'time', [NaN NaN], ...
-    'startTime', NaN, ...
-    'endTime', NaN);
-
-if cfg.analysis.findQuasiSteadyWindow
-
-    fprintf("\n--- Detecting quasi-steady flow interval ---\n");
-
-    [steadyWindow, timingDiagnostics] = ...
-        determineQuasiSteadyWindow( ...
-            cfg, ...
-            driverData, ...
-            triggerData, ...
-            dataData);
-
-    fprintf("Estimated quasi-steady interval: %.6f to %.6f s\n", ...
-        steadyWindow.startTime, ...
-        steadyWindow.endTime);
-
-    fprintf("Estimated duration: %.6f s\n", ...
-        steadyWindow.endTime - steadyWindow.startTime);
-
-    fprintf("Trigger threshold time: %.6f s\n", ...
-        timingDiagnostics.triggerTime);
-    fprintf("PCB analysis channel: %s\n", ...
-        timingDiagnostics.pcbChannel);
-    fprintf("PCB reference fluctuation: %.6g\n", ...
-        timingDiagnostics.pcbReferenceLevel);
-    fprintf("First valid PCB-qualified start: %.6f s\n", ...
-        timingDiagnostics.pcbFirstValidStart);
-    fprintf("First sustained PCB unstart: %.6f s\n", ...
-        timingDiagnostics.pcbFirstUnstart);
-
-    fprintf("\nDriver flat windows:\n");
-
-    for windowIndex = 1:numel(timingDiagnostics.driverFlatWindows)
-        driverWindow = timingDiagnostics.driverFlatWindows(windowIndex);
-
-        fprintf("  %d: %.6f to %.6f s (duration %.6f s)\n", ...
-            windowIndex, ...
-            driverWindow.startTime, ...
-            driverWindow.endTime, ...
-            driverWindow.endTime - driverWindow.startTime);
-    end
-
-    if isempty(timingDiagnostics.driverFlatWindows)
-        fprintf("  none detected\n");
-    end
-
-    fprintf("Driver state samples: flat=%d, descending=%d, other=%d\n", ...
-        nnz(timingDiagnostics.driverState == "flat"), ...
-        nnz(timingDiagnostics.driverState == "descending"), ...
-        nnz(timingDiagnostics.driverState == "other"));
-end
-
-%% Run quasi-steady trace plotting and prepare steady analysis data
-
+steadyWindow = emptySteadyWindow();
+timingDiagnostics = struct();
 steadyDataData = dataData;
 
-hasValidSteadyWindow = all(isfinite(steadyWindow.time));
+if stages.needsQuasiSteadyWindow
+    fprintf('\n--- Detecting quasi-steady interval ---\n');
+    [steadyWindow, timingDiagnostics] = determineQuasiSteadyWindow( ...
+        cfg, driverData, triggerData, dataData);
+    results.stageStatus.quasiSteadyDetection = true;
 
-if cfg.analysis.runQuasiSteadyTracePlots && hasValidSteadyWindow
-    fprintf("\n--- Generating quasi-steady trace plots ---\n");
-
-    steadyFigures = plotQuasiSteadyPcbTraces( ...
-        cfg, ...
-        dataData, ...
-        triggerData, ...
-        driverData, ...
-        steadyWindow);
-
-    fprintf("Quasi-steady trace plotting completed\n");
-
-    for channelIndex = 1:numel(dataData.channels)
-        channelTime = dataData.time{channelIndex};
-        channelSignal = dataData.signal{channelIndex};
-
-        steadyMask = channelTime >= steadyWindow.startTime & ...
-            channelTime <= steadyWindow.endTime;
-
-        steadyDataData.time{channelIndex} = channelTime(steadyMask);
-        steadyDataData.signal{channelIndex} = channelSignal(steadyMask);
-    end
-elseif cfg.analysis.findQuasiSteadyWindow && ~hasValidSteadyWindow
-    warning('run_pcb_main:NoSteadyWindow', ...
-        'No valid steady window was detected; using the full data record.');
-end
-
-%% Configuration for PCB spectrogram plotting
-
-cfg.analysis.runSpectrogram = true;
-cfg.analysis.plotSpectrogram = true;
-
-cfg.analysis.saveSpectrogramFolder = "C:\Users\coled_agkeohi\Notre Dame\PCB_test_workflow_data\spectral_analysis\spectrogram_plots"; % Specify the folder to save the generated spectrogram plots
-cfg.analysis.saveSpectrogram = true;
-
-cfg.spectrogram.windowLength = 1000;
-cfg.spectrogram.overlap = 0.75;
-cfg.spectrogram.frequencyBand = [50e3 800e3];
-cfg.spectrogram.colormap = "turbo";
-
-%% Compute spectrogram on extracted quasi-steady PCB data
-if cfg.analysis.runSpectrogram
-    fprintf("\n--- Generating steady-data spectrograms ---\n");
-    spectrogramResults = computePcbSpectrogram( ...
-        cfg, steadyDataData, "steady");
-
-    fprintf("\n--- Generating full-record spectrograms ---\n");
-    fullSpectrogramResults = computePcbSpectrogram( ...
-        cfg, dataData, "full");
-
-    fprintf("Steady and full-record spectrogram computation completed\n");
-end
-
-%% Plot spectrograms for extracted PCB data
-if cfg.analysis.plotSpectrogram
-    fprintf("\n--- Plotting steady-data spectrograms ---\n");
-    spectrogramFig = plotPcbSpectrogram( ...
-        cfg, spectrogramResults, "steady");
-
-    fprintf("\n--- Plotting full-record spectrograms ---\n");
-    fullSpectrogramFig = plotPcbSpectrogram( ...
-        cfg, fullSpectrogramResults, "full");
-
-    fprintf("Steady and full-record spectrogram plotting completed\n");
-end
-
-%% Configuration for second-mode analysis
-
-cfg.analysis.dataLocations = ["top", "bottom", "north"] ; % Denote the locations of the PCBs used for alignment; match indices of cfg.analysis.dataChannels to the corresponding locations in this array
-
-cfg.secondMode.frequencyBand = [80e3 200e3]; % Specify the frequency band for second-mode analysis
-cfg.secondMode.peakFraction = 0.1; % Specify the fraction of the peak value to use for tracking the second mode
-cfg.secondMode.minValidFraction = 0.5; % Specify the minimum fraction of valid data points required for a valid second-mode result
-cfg.secondMode.minimumContrast = 2.0;
-cfg.secondMode.minimumAmplitude = 0;
-cfg.secondMode.contrastSmoothingWindows = 5;
-cfg.secondMode.frequencySmoothBins = 5;
-cfg.secondMode.timeSmoothBins = 41;
-cfg.secondMode.smallSlopeFitBins = 7;
-cfg.secondMode.mediumSlopeFitBins = 13;
-cfg.secondMode.broadSlopeFitBins = 25;
-cfg.secondMode.maximumCandidateDrift = 10e3;
-cfg.secondMode.minimumProminenceDb = 5;
-cfg.secondMode.minimumQuadraticFitImprovement = 0.25;
-cfg.secondMode.stateSmoothingBins = 401;
-cfg.secondMode.minimumCandidateFraction = 0.20;
-
-cfg.secondMode.minimumVisibleWindows = 80;
-cfg.secondMode.minimumInvisibleWindows = 80;
-cfg.secondMode.edgeBufferBins = 2;
-cfg.secondMode.visualBoxHalfWidth = 30e3;
-
-cfg.analysis.runSecondModeTracking = true;
-cfg.analysis.reportSecondMode = true;
-
-%% Run second-mode tracking on extracted PCB data
-if cfg.analysis.runSecondModeTracking
-    fprintf("\n--- Tracking second mode ---\n");
-
-    secondModeResults = trackSecondMode( ...
-        cfg, ...
-        spectrogramResults);
-
-    fprintf("Second-mode tracking completed\n");
-
-    if cfg.analysis.reportSecondMode
-        fprintf("\n--- Reporting second-mode results ---\n");
-        reportSecondMode(cfg, secondModeResults);
-        fprintf("Second-mode reporting completed\n");
-    end
-end
-
-%% Generate legacy-style windowed PSD plots
-
-cfg.analysis.runPsdPlots = true;
-cfg.analysis.savePsdPlots = false;
-cfg.analysis.savePsdPlotsFolder = ...
-    "C:\Users\coled_agkeohi\Notre Dame\PCB_test_workflow_data\spectral_analysis\PSD_plots";
-
-cfg.psd.windowDuration = 0.050;
-cfg.psd.windowStep = 0.050;
-cfg.psd.segmentCount = 40;
-cfg.psd.overlap = 0.50;
-cfg.psd.method = "pwelch";
-cfg.psd.filtAmount = 3;
-cfg.psd.detrend = "linear";
-cfg.psd.frequencyBand = [0 800e3];
-
-if cfg.analysis.runPsdPlots && cfg.analysis.runSecondModeTracking
-    steadyTime = steadyDataData.time{1};
-    steadyDuration = steadyTime(end) - steadyTime(1);
-
-    if steadyDuration >= cfg.psd.windowDuration
-        windowStart = (0:cfg.psd.windowStep: ...
-            steadyDuration - cfg.psd.windowDuration).';
+    if all(isfinite(steadyWindow.time))
+        steadyDataData = cropChannelData(dataData, steadyWindow.time);
+        printTimingSummary(steadyWindow, timingDiagnostics);
+    elseif string(cfg.analysis.onInvalidQuasiSteadyWindow) == "error"
+        error('run_pcb_main:NoQuasiSteadyWindow', ...
+            'No valid quasi-steady interval was detected.');
     else
-        windowStart = 0;
+        warning('run_pcb_main:NoQuasiSteadyWindow', ...
+            ['No valid quasi-steady interval was detected; ', ...
+            'the full record will be used where a fallback is possible.']);
     end
+end
 
-    cfg.psd.windowList = [ ...
-        windowStart, ...
-        min(windowStart + cfg.psd.windowDuration, steadyDuration)];
+results.steadyWindow = steadyWindow;
+results.timingDiagnostics = timingDiagnostics;
+results.steadyDataData = steadyDataData;
 
-    fprintf("\n--- Generating steady-data PSD plots ---\n");
-    [psdResults, psdFigures] = plotPcbSpectra( ...
-        cfg, steadyDataData, secondModeResults);
-    fprintf("Steady-data PSD plots completed\n");
+if cfg.run.quasiSteadyTracePlots && all(isfinite(steadyWindow.time))
+    fprintf('\n--- Plotting quasi-steady traces ---\n');
+    results.figures.quasiSteadyTraces = ...
+        plotQuasiSteadyPcbTraces( ...
+            cfg, dataData, triggerData, driverData, steadyWindow);
+    results.stageStatus.quasiSteadyTracePlots = true;
+end
+
+if stages.needsWindowedPsd
+    analysisData = selectAnalysisData( ...
+        cfg, dataData, steadyDataData, steadyWindow);
+else
+    analysisData = dataData;
+end
+results.analysisData = analysisData;
+
+%% Spectrogram calculation and plotting
+
+if cfg.run.steadySpectrogram
+    fprintf('\n--- Computing quasi-steady spectrograms ---\n');
+    results.spectrogram.steady = computePcbSpectrogram( ...
+        cfg, steadyDataData);
+    results.stageStatus.steadySpectrogram = true;
+
+    if cfg.output.saveSpectrogramData
+        saveSpectrogramData(cfg, results.spectrogram.steady, "steady");
+    end
+    if cfg.run.spectrogramPlots
+        results.figures.steadySpectrogram = plotPcbSpectrogram( ...
+            cfg, results.spectrogram.steady, "steady");
+    end
+end
+
+if cfg.run.fullSpectrogram
+    fprintf('\n--- Computing full-record spectrograms ---\n');
+    results.spectrogram.full = computePcbSpectrogram( ...
+        cfg, dataData);
+    results.stageStatus.fullSpectrogram = true;
+
+    if cfg.output.saveSpectrogramData
+        saveSpectrogramData(cfg, results.spectrogram.full, "full");
+    end
+    if cfg.run.spectrogramPlots
+        results.figures.fullSpectrogram = plotPcbSpectrogram( ...
+            cfg, results.spectrogram.full, "full");
+    end
+end
+
+%% Windowed PSD calculation and preview
+
+if stages.needsWindowedPsd
+    fprintf('\n--- Computing windowed PCB PSDs ---\n');
+    results.windowedPsd = computeWindowedPcbPsd(cfg, analysisData);
+    results.stageStatus.windowedPsd = true;
+    fprintf('Computed %d PSD windows for %d channels\n', ...
+        numel(results.windowedPsd.windowCenterTime), ...
+        numel(results.windowedPsd.channels));
+end
+
+if cfg.run.windowedPsdPreview
+    fprintf('\n--- Plotting windowed PSD preview ---\n');
+    results.figures.windowedPsd = ...
+        plotWindowedPcbPsd(cfg, results.windowedPsd);
+    results.stageStatus.windowedPsdPreview = true;
+end
+
+%% Second-mode analysis
+
+if cfg.run.secondModeAnalysis
+    fprintf('\n--- Detecting second-mode peaks ---\n');
+    results.secondMode = analyzeSecondModeWindows( ...
+        cfg, results.windowedPsd);
+    reportSecondModeWindows(results.secondMode);
+    results.stageStatus.secondModeAnalysis = true;
+end
+
+%% Save packaged results
+
+results.metadata.completedAt = datetime('now');
+
+if cfg.run.saveResults
+    results.files.results = string(cfg.output.resultsFile);
+    results.stageStatus.resultsSaved = true;
+    saveResultsFile(cfg, results);
+end
+
+fprintf('\nPCB analysis workflow completed\n');
+end
+
+function [cfg, configurationFile] = loadConfiguration(cfgInput)
+configurationFile = "";
+if isstruct(cfgInput)
+    if ~isscalar(cfgInput)
+        error('run_pcb_main:InvalidConfiguration', ...
+            'The configuration must be a scalar struct.');
+    end
+    cfg = cfgInput;
+    return
+end
+
+configurationFile = string(cfgInput);
+if ~isscalar(configurationFile) || ~isfile(configurationFile)
+    error('run_pcb_main:ConfigurationFileNotFound', ...
+        'Configuration MAT-file not found: %s', configurationFile);
+end
+loaded = load(configurationFile, 'cfg');
+if ~isfield(loaded, 'cfg') || ~isstruct(loaded.cfg)
+    error('run_pcb_main:MissingCfgVariable', ...
+        'Configuration MAT-file must contain a struct named cfg.');
+end
+cfg = loaded.cfg;
+end
+
+function stages = resolveStages(cfg)
+stages = struct();
+stages.needsWindowedPsd = cfg.run.windowedPsd || ...
+    cfg.run.windowedPsdPreview || cfg.run.secondModeAnalysis;
+stages.needsQuasiSteadyWindow = ...
+    cfg.run.quasiSteadyTracePlots || cfg.run.steadySpectrogram || ...
+    (stages.needsWindowedPsd && ...
+    string(cfg.analysis.interval) == "quasiSteady");
+end
+
+function results = initializeResults(cfg, configurationFile, stages)
+results = struct();
+results.cfg = cfg;
+results.configurationFile = configurationFile;
+results.metadata = struct( ...
+    'startedAt', datetime('now'), ...
+    'matlabVersion', string(version));
+results.stages = stages;
+results.stageStatus = struct( ...
+    'inputLoaded', false, ...
+    'channelsExtracted', false, ...
+    'fullTracePlots', false, ...
+    'quasiSteadyDetection', false, ...
+    'quasiSteadyTracePlots', false, ...
+    'steadySpectrogram', false, ...
+    'fullSpectrogram', false, ...
+    'windowedPsd', false, ...
+    'windowedPsdPreview', false, ...
+    'secondModeAnalysis', false, ...
+    'resultsSaved', false);
+results.pcbData = [];
+results.driverData = [];
+results.triggerData = [];
+results.dataData = [];
+results.steadyDataData = [];
+results.analysisData = [];
+results.steadyWindow = [];
+results.timingDiagnostics = [];
+results.spectrogram = struct('steady', [], 'full', []);
+results.windowedPsd = [];
+results.secondMode = [];
+results.figures = struct();
+results.files = struct();
+end
+
+function steadyWindow = emptySteadyWindow()
+steadyWindow = struct('time', [NaN NaN], ...
+    'startTime', NaN, 'endTime', NaN);
+end
+
+function selectedData = selectAnalysisData( ...
+    cfg, fullData, steadyData, steadyWindow)
+switch string(cfg.analysis.interval)
+    case "full"
+        selectedData = fullData;
+    case "manual"
+        selectedData = cropChannelData( ...
+            fullData, cfg.analysis.manualTimeRange);
+    case "quasiSteady"
+        if all(isfinite(steadyWindow.time))
+            selectedData = steadyData;
+        else
+            selectedData = fullData;
+        end
+end
+end
+
+function croppedData = cropChannelData(data, timeRange)
+croppedData = data;
+for channelIndex = 1:numel(data.channels)
+    time = data.time{channelIndex};
+    signal = data.signal{channelIndex};
+    mask = time >= timeRange(1) & time <= timeRange(2);
+    if ~any(mask)
+        error('run_pcb_main:EmptyAnalysisInterval', ...
+            'Time range does not overlap channel %s.', ...
+            data.channels(channelIndex));
+    end
+    croppedData.time{channelIndex} = time(mask);
+    croppedData.signal{channelIndex} = signal(mask);
+end
+end
+
+function printTimingSummary(steadyWindow, diagnostics)
+fprintf('Estimated quasi-steady interval: %.6f to %.6f s\n', ...
+    steadyWindow.startTime, steadyWindow.endTime);
+fprintf('Estimated duration: %.6f s\n', ...
+    steadyWindow.endTime - steadyWindow.startTime);
+fprintf('Trigger threshold time: %.6f s\n', diagnostics.triggerTime);
+fprintf('PCB analysis channel: %s\n', diagnostics.pcbChannel);
+end
+
+function saveSpectrogramData(cfg, spectrogramResults, label)
+folder = cfg.output.spectrogramFolder;
+if ~isfolder(folder)
+    mkdir(folder);
+end
+fileName = fullfile(folder, label + "SpectrogramResults.mat");
+save(fileName, 'spectrogramResults');
+fprintf('Spectrogram results saved to %s\n', fileName);
+end
+
+function saveResultsFile(cfg, results)
+fileName = string(cfg.output.resultsFile);
+folder = fileparts(fileName);
+if strlength(folder) > 0 && ~isfolder(folder)
+    mkdir(folder);
+end
+results.figures = struct();
+if ~cfg.output.saveRawPcbDataInResults
+    results.pcbData = [];
+end
+save(fileName, 'results', '-v7.3');
+fprintf('PCB analysis results saved to %s\n', fileName);
 end

@@ -1,8 +1,8 @@
 function figures = plotPcbTraces(cfg, dataData, triggerData, driverData)
 %PLOTPCBTRACES Plots the traces of the specified PCB channels for analysis.
 
-if cfg.plotting.savePlots && ~ isfolder(cfg.plotting.saveFolder)
-    mkdir(cfg.plotting.saveFolder);
+if cfg.output.saveTracePlots && ~isfolder(cfg.output.tracePlotFolder)
+    mkdir(cfg.output.tracePlotFolder);
 end
 
 % Keep the extracted data unchanged and preprocess plotting copies only.
@@ -33,7 +33,7 @@ driverv=[-8.08 -0.73153 -3.3495 4.8098 -7.4776 -0.5246]; %(V)
 driver_FIT = polyfit(driverv,driverp,1);
 
 calibratedDriverSignal = ...
-    driverData.signal{1} .* driver_FIT(1) + driver_FIT(2);
+    plotDriverData.signal{1} .* driver_FIT(1) + driver_FIT(2);
 plot(plotDriverData.time{1}, calibratedDriverSignal, ...
     'DisplayName', plotDriverData.channels(1));
 hold on
@@ -75,17 +75,17 @@ title('PCB Trigger Traces', 'FontSize', cfg.plotting.fontSize);
 legend('show', 'Location', 'best', 'FontSize', cfg.plotting.fontSize);
 
 
-if cfg.plotting.savePlots
+if cfg.output.saveTracePlots
     saveFigureIfValid( ...
         figures.driver, ...
-        fullfile(cfg.plotting.saveFolder, 'driver_tube_pressure.png'));
+        fullfile(cfg.output.tracePlotFolder, 'driver_tube_pressure.png'));
     saveFigureIfValid( ...
         figures.data, ...
-        fullfile(cfg.plotting.saveFolder, 'pcb_data_traces.png'));
+        fullfile(cfg.output.tracePlotFolder, 'pcb_data_traces.png'));
     saveFigureIfValid( ...
         figures.trigger, ...
-        fullfile(cfg.plotting.saveFolder, 'pcb_trigger_traces.png'));
-    fprintf("Trace plots saved to %s\n", cfg.plotting.saveFolder);
+        fullfile(cfg.output.tracePlotFolder, 'pcb_trigger_traces.png'));
+    fprintf("Trace plots saved to %s\n", cfg.output.tracePlotFolder);
 end
 
 end

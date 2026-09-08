@@ -26,10 +26,11 @@ if ~isfield(cfg, 'input') || ~isfield(cfg.input, 'rawFolder')
     error('convertPnrfData:MissingRawFolder', ...
         'Configuration must define cfg.input.rawFolder.');
 end
-if ~isfield(cfg, 'channels') || ~isfield(cfg.channels, 'labels') || ...
-        isempty(cfg.channels.labels)
+if ~isfield(cfg, 'channels') || ...
+        ~isfield(cfg.channels, 'recorderLabels') || ...
+        isempty(cfg.channels.recorderLabels)
     error('convertPnrfData:MissingRecorderLabels', ...
-        'Configuration must define cfg.channels.labels.');
+        'Configuration must define cfg.channels.recorderLabels.');
 end
 if ~isfield(cfg.channels, 'maxPerRecorder') || ...
         ~isscalar(cfg.channels.maxPerRecorder) || ...
@@ -43,20 +44,22 @@ if ~isfield(cfg.input, 'rawFileName') || isempty(cfg.input.rawFileName)
         'Configuration must define cfg.input.rawFileName.');
 end
 if saveConvertedData && ...
-        (~isfield(cfg, 'output') || ~isfield(cfg.output, 'dataFolder'))
+        (~isfield(cfg, 'output') || ...
+        ~isfield(cfg.output, 'convertedDataFolder'))
     error('convertPnrfData:MissingDataFolder', ...
-        'Configuration must define cfg.output.dataFolder if cfg.conversion.mode is "disk".');
+        ['Configuration must define cfg.output.convertedDataFolder ', ...
+        'if cfg.conversion.mode is "disk".']);
 end
 
 rawFolder = char(cfg.input.rawFolder);
 rawFileName = char(cfg.input.rawFileName);
-recorderLabels = string(cfg.channels.labels(:));
+recorderLabels = string(cfg.channels.recorderLabels(:));
 maxRecorders = numel(recorderLabels);
 maxChannels = cfg.channels.maxPerRecorder;
 
 if numel(unique(recorderLabels)) ~= maxRecorders
     error('convertPnrfData:DuplicateRecorderLabels', ...
-        'cfg.channels.labels must contain unique recorder labels.');
+        'cfg.channels.recorderLabels must contain unique labels.');
 end
 
 if ~isfolder(rawFolder)
@@ -64,8 +67,8 @@ if ~isfolder(rawFolder)
         'PNRF input folder not found: %s', rawFolder);
 end
 
-if saveConvertedData && ~isfolder(cfg.output.dataFolder)
-    mkdir(cfg.output.dataFolder);
+if saveConvertedData && ~isfolder(cfg.output.convertedDataFolder)
+    mkdir(cfg.output.convertedDataFolder);
 end
 
 filePath = fullfile(rawFolder, rawFileName);
@@ -125,7 +128,8 @@ pcbData.signalData = pcbData.signalData(1:recordedSignalCount);
 
 if saveConvertedData
     [~, baseName] = fileparts(rawFileName);
-    outputPath = fullfile(cfg.output.dataFolder, [baseName '.mat']);
+    outputPath = fullfile( ...
+        cfg.output.convertedDataFolder, [baseName '.mat']);
     save(outputPath, 'pcbData', '-v7.3');
     fprintf('Saved converted data to: %s\n', outputPath);
 end
