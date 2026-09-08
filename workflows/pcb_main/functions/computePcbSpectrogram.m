@@ -1,4 +1,8 @@
-function spectrogramResults = computePcbSpectrogram(cfg, dataData)
+function spectrogramResults = computePcbSpectrogram(cfg, dataData, outputLabel)
+    if nargin < 3 || isempty(outputLabel)
+        outputLabel = "spectrogram";
+    end
+
     % Initialize the output structure
     spectrogramResults = struct();
 
@@ -35,7 +39,9 @@ function spectrogramResults = computePcbSpectrogram(cfg, dataData)
         if ~exist(saveFolder, 'dir')
             mkdir(saveFolder);
         end
-        saveFileName = fullfile(saveFolder, 'spectrogramResults.mat');
+        saveFileName = fullfile( ...
+            saveFolder, ...
+            outputLabel + "SpectrogramResults.mat");
         save(saveFileName, 'spectrogramResults');
         fprintf("Spectrogram results saved to %s\n", saveFileName);
     end

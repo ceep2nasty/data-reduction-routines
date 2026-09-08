@@ -76,10 +76,27 @@ legend('show', 'Location', 'best', 'FontSize', cfg.plotting.fontSize);
 
 
 if cfg.plotting.savePlots
-    saveas(figures.driver, fullfile(cfg.plotting.saveFolder, 'driver_tube_pressure.png'));
-    saveas(figures.data, fullfile(cfg.plotting.saveFolder, 'pcb_data_traces.png'));
-    saveas(figures.trigger, fullfile(cfg.plotting.saveFolder, 'pcb_trigger_traces.png'));
+    saveFigureIfValid( ...
+        figures.driver, ...
+        fullfile(cfg.plotting.saveFolder, 'driver_tube_pressure.png'));
+    saveFigureIfValid( ...
+        figures.data, ...
+        fullfile(cfg.plotting.saveFolder, 'pcb_data_traces.png'));
+    saveFigureIfValid( ...
+        figures.trigger, ...
+        fullfile(cfg.plotting.saveFolder, 'pcb_trigger_traces.png'));
     fprintf("Trace plots saved to %s\n", cfg.plotting.saveFolder);
 end
 
+end
+
+function saveFigureIfValid(figureHandle, fileName)
+if ~isgraphics(figureHandle, 'figure')
+    warning('plotPcbTraces:InvalidFigureHandle', ...
+        'Skipping closed or invalid figure: %s', fileName);
+    return
+end
+
+drawnow;
+exportgraphics(figureHandle, fileName, 'Resolution', 300);
 end

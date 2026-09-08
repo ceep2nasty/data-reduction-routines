@@ -4,7 +4,7 @@ clear; close all; clc
 %% Setup
 
 
-repoDir = "C:\Users\coled\Notre Dame\Github\data-reduction-routines"; % path to repository you should be working in
+repoDir = "C:\\Users\\coled_agkeohi\\Notre Dame\Git\data-reduction-routines"; % path to repository you should be working in
 scriptDir = fullfile(repoDir, "workflows", "pcb_main");
 functionDir = fullfile(scriptDir, "functions");
 globalDir = fullfile(repoDir, "matlab", "global");
@@ -27,10 +27,10 @@ cfg = struct();
 
 % Determine if input source is .pnrf, or converted .mat
 
-cfg.input.source = "mat"; % Set to "pnrf" for raw .pnrf files, or "mat" for converted .mat files
+cfg.input.source = "pnrf"; % Set to "pnrf" for raw .pnrf files, or "mat" for converted .mat files
 
 % Input configuration for raw .pnrf files
-cfg.input.rawFolder = "C:\Users\coled\Notre Dame\test_pcb_workflow\raw_pnrf_files"; % Add path to folder containing raw .pnrf files
+cfg.input.rawFolder = "C:\Users\coled_agkeohi\Notre Dame\PCB_test_workflow_data\raw_pnrf_files";
 cfg.input.rawFileName = 'alignment_60psi_feb2026.pNRF'; % Add the exact raw .pnrf filename
 
 % Input naming rules for recorder channels on DAQ
@@ -38,7 +38,7 @@ cfg.input.rawFileName = 'alignment_60psi_feb2026.pNRF'; % Add the exact raw .pnr
 cfg.channels.labels = ["A", "B", "C", "D"]; % Add recorder labels in Perception recorder order
 cfg.channels.maxPerRecorder = 8; % Add the maximum number of channels per recorder
 
-cfg.output.dataFolder = "C:\Users\coled\Notre Dame\test_pcb_workflow\matlab_exports"; % Add path to folder where converted .mat files will be saved. This folder will be created if it does not exist.
+cfg.output.dataFolder = "C:\Users\coled_agkeohi\Notre Dame\PCB_test_workflow_data\matlab_exports"; % Add path to folder where converted .mat files will be saved. This folder will be created if it does not exist.
 cfg.conversion.mode = "disk" ; % Choose "memory" or "disk" for conversion mode. "memory" will return the converted data in memory, while "disk" will save the converted data to disk and return the file path.
 
 % Input configuration for saved .mat files
@@ -133,7 +133,7 @@ cfg.analysis.runQuasiSteadyTracePlots = true;
 
 % Choose whether to save the generated plots and specify the folder to save them
 cfg.plotting.savePlots = true; % Set to true to save the generated plots
-cfg.plotting.saveFolder = "C:\Users\coled\Notre Dame\test_pcb_workflow\trace_plots"; % Specify the folder to save the generated plots
+cfg.plotting.saveFolder = "C:\Users\coled_agkeohi\Notre Dame\PCB_test_workflow_data\saved_pcb_figs" ; % Specify the folder to save the generated plots
 
 %% Run trace plotting on extracted PCB data
 if cfg.analysis.runTracePlots
@@ -268,7 +268,7 @@ end
 cfg.analysis.runSpectrogram = true;
 cfg.analysis.plotSpectrogram = true;
 
-cfg.analysis.saveSpectrogramFolder = "C:\Users\coled\Notre Dame\test_pcb_workflow\spectrogram_plots"; % Specify the folder to save the generated spectrogram plots
+cfg.analysis.saveSpectrogramFolder = "C:\Users\coled_agkeohi\Notre Dame\PCB_test_workflow_data\spectral_analysis\spectrogram_plots"; % Specify the folder to save the generated spectrogram plots
 cfg.analysis.saveSpectrogram = true;
 
 cfg.spectrogram.windowLength = 1000;
@@ -276,34 +276,57 @@ cfg.spectrogram.overlap = 0.75;
 cfg.spectrogram.frequencyBand = [50e3 800e3];
 cfg.spectrogram.colormap = "turbo";
 
-%% Compute spectrogram on extracted PCB data
+%% Compute spectrogram on extracted quasi-steady PCB data
 if cfg.analysis.runSpectrogram
-    fprintf("\n--- Generating spectrograms for extracted PCB data ---\n");
-    spectrogramResults = computePcbSpectrogram(cfg, steadyDataData);
-    fprintf("Spectrogram computation completed\n");
+    fprintf("\n--- Generating steady-data spectrograms ---\n");
+    spectrogramResults = computePcbSpectrogram( ...
+        cfg, steadyDataData, "steady");
+
+    fprintf("\n--- Generating full-record spectrograms ---\n");
+    fullSpectrogramResults = computePcbSpectrogram( ...
+        cfg, dataData, "full");
+
+    fprintf("Steady and full-record spectrogram computation completed\n");
 end
 
 %% Plot spectrograms for extracted PCB data
 if cfg.analysis.plotSpectrogram
-    fprintf("\n--- Plotting spectrograms for extracted PCB data ---\n");
-    spectrogramFig =plotPcbSpectrogram(cfg, spectrogramResults);
-    fprintf("Spectrogram plotting completed\n");
+    fprintf("\n--- Plotting steady-data spectrograms ---\n");
+    spectrogramFig = plotPcbSpectrogram( ...
+        cfg, spectrogramResults, "steady");
+
+    fprintf("\n--- Plotting full-record spectrograms ---\n");
+    fullSpectrogramFig = plotPcbSpectrogram( ...
+        cfg, fullSpectrogramResults, "full");
+
+    fprintf("Steady and full-record spectrogram plotting completed\n");
 end
 
 %% Configuration for second-mode analysis
 
 cfg.analysis.dataLocations = ["top", "bottom", "north"] ; % Denote the locations of the PCBs used for alignment; match indices of cfg.analysis.dataChannels to the corresponding locations in this array
 
-cfg.secondMode.frequencyBand = [50e3 300e3]; % Specify the frequency band for second-mode analysis
+cfg.secondMode.frequencyBand = [80e3 200e3]; % Specify the frequency band for second-mode analysis
 cfg.secondMode.peakFraction = 0.1; % Specify the fraction of the peak value to use for tracking the second mode
 cfg.secondMode.minValidFraction = 0.5; % Specify the minimum fraction of valid data points required for a valid second-mode result
 cfg.secondMode.minimumContrast = 2.0;
 cfg.secondMode.minimumAmplitude = 0;
-cfg.secondMode.contrastSmoothingWindows = 3;
+cfg.secondMode.contrastSmoothingWindows = 5;
+cfg.secondMode.frequencySmoothBins = 5;
+cfg.secondMode.timeSmoothBins = 41;
+cfg.secondMode.smallSlopeFitBins = 7;
+cfg.secondMode.mediumSlopeFitBins = 13;
+cfg.secondMode.broadSlopeFitBins = 25;
+cfg.secondMode.maximumCandidateDrift = 10e3;
+cfg.secondMode.minimumProminenceDb = 5;
+cfg.secondMode.minimumQuadraticFitImprovement = 0.25;
+cfg.secondMode.stateSmoothingBins = 401;
+cfg.secondMode.minimumCandidateFraction = 0.20;
 
-cfg.secondMode.minimumVisibleWindows = 3;
-cfg.secondMode.minimumInvisibleWindows = 5;
+cfg.secondMode.minimumVisibleWindows = 80;
+cfg.secondMode.minimumInvisibleWindows = 80;
 cfg.secondMode.edgeBufferBins = 2;
+cfg.secondMode.visualBoxHalfWidth = 30e3;
 
 cfg.analysis.runSecondModeTracking = true;
 cfg.analysis.reportSecondMode = true;
@@ -323,4 +346,41 @@ if cfg.analysis.runSecondModeTracking
         reportSecondMode(cfg, secondModeResults);
         fprintf("Second-mode reporting completed\n");
     end
+end
+
+%% Generate legacy-style windowed PSD plots
+
+cfg.analysis.runPsdPlots = true;
+cfg.analysis.savePsdPlots = false;
+cfg.analysis.savePsdPlotsFolder = ...
+    "C:\Users\coled_agkeohi\Notre Dame\PCB_test_workflow_data\spectral_analysis\PSD_plots";
+
+cfg.psd.windowDuration = 0.050;
+cfg.psd.windowStep = 0.050;
+cfg.psd.segmentCount = 40;
+cfg.psd.overlap = 0.50;
+cfg.psd.method = "pwelch";
+cfg.psd.filtAmount = 3;
+cfg.psd.detrend = "linear";
+cfg.psd.frequencyBand = [0 800e3];
+
+if cfg.analysis.runPsdPlots && cfg.analysis.runSecondModeTracking
+    steadyTime = steadyDataData.time{1};
+    steadyDuration = steadyTime(end) - steadyTime(1);
+
+    if steadyDuration >= cfg.psd.windowDuration
+        windowStart = (0:cfg.psd.windowStep: ...
+            steadyDuration - cfg.psd.windowDuration).';
+    else
+        windowStart = 0;
+    end
+
+    cfg.psd.windowList = [ ...
+        windowStart, ...
+        min(windowStart + cfg.psd.windowDuration, steadyDuration)];
+
+    fprintf("\n--- Generating steady-data PSD plots ---\n");
+    [psdResults, psdFigures] = plotPcbSpectra( ...
+        cfg, steadyDataData, secondModeResults);
+    fprintf("Steady-data PSD plots completed\n");
 end

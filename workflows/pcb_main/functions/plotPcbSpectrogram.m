@@ -1,8 +1,15 @@
-function spectrogramFig = plotPcbSpectrogram(cfg, spectrogramResults)
-    % Implementation for plotting spectrograms
-    for channelIndex = 1:length(spectrogramResults.channels)
-    spectrogramFig = figure('Name', ...
-        "Spectrogram " + spectrogramResults.channels(channelIndex));
+function spectrogramFig = plotPcbSpectrogram(cfg, spectrogramResults, outputLabel)
+    if nargin < 3 || isempty(outputLabel)
+        outputLabel = "spectrogram";
+    end
+
+    numberOfChannels = length(spectrogramResults.channels);
+    spectrogramFig = gobjects(numberOfChannels, 1);
+
+    for channelIndex = 1:numberOfChannels
+    spectrogramFig(channelIndex) = figure('Name', ...
+        outputLabel + " spectrogram " + ...
+        spectrogramResults.channels(channelIndex));
 
     pcolor( ...
         spectrogramResults.time{channelIndex}, ...
@@ -12,7 +19,7 @@ function spectrogramFig = plotPcbSpectrogram(cfg, spectrogramResults)
     shading interp;
     xlabel('Time (s)');
     ylabel('Frequency (kHz)');
-    title("Spectrogram " + ...
+    title(outputLabel + " spectrogram " + ...
         spectrogramResults.channels(channelIndex));
 
     colormap(cfg.spectrogram.colormap);
@@ -25,11 +32,25 @@ function spectrogramFig = plotPcbSpectrogram(cfg, spectrogramResults)
         if ~exist(saveFolder, 'dir')
             mkdir(saveFolder);
         end
-        for channelIndex = 1:length(spectrogramResults.channels)
+        for channelIndex = 1:numberOfChannels
             saveFileName = fullfile(saveFolder, ...
-                "spectrogram_" + spectrogramResults.channels(channelIndex) + ".png");
-            saveas(spectrogramFig, saveFileName);
+                outputLabel + "Spectrogram_" + ...
+                spectrogramResults.channels(channelIndex) + ".png");
+            saveFigureIfValid( ...
+                spectrogramFig(channelIndex), ...
+                saveFileName);
             fprintf("Spectrogram plot saved to %s\n", saveFileName);
         end
     end
+end
+
+function saveFigureIfValid(figureHandle, fileName)
+if ~isgraphics(figureHandle, 'figure')
+    warning('plotPcbSpectrogram:InvalidFigureHandle', ...
+        'Skipping closed or invalid figure: %s', fileName);
+    return
+end
+
+drawnow;
+exportgraphics(figureHandle, fileName, 'Resolution', 300);
 end
