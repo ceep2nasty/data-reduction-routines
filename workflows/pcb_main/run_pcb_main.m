@@ -14,15 +14,20 @@ end
 scriptDir = fileparts(mfilename('fullpath'));
 repoDir = fileparts(fileparts(scriptDir));
 functionDir = fullfile(scriptDir, 'functions');
+reportingDir = fullfile(scriptDir, 'reporting');
 globalDir = fullfile(repoDir, 'matlab', 'global');
 
 assert(isfolder(functionDir), ...
     'PCB functions folder does not exist: %s', functionDir);
+assert(isfolder(reportingDir), ...
+    'PCB reporting folder does not exist: %s', reportingDir);
 assert(isfolder(globalDir), ...
     'Global MATLAB folder does not exist: %s', globalDir);
 
 addpath(functionDir);
+addpath(reportingDir);
 addpath(genpath(globalDir));
+
 validatePcbConfig(cfg);
 
 additionalFolders = string(cfg.paths.additionalFolders(:));

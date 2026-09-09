@@ -2,8 +2,40 @@
 % This is the file to edit for a new recording. Every supported setting and
 % its full explanation lives in createPcbConfig.m.
 
-callerDir = fileparts(mfilename('fullpath'));
-addpath(callerDir);
+%% Establish repository paths
+
+% Set this to the pcb_main folder in your local repository.
+pcbWorkflowDir = ...
+    "C:\Users\coled_agkeohi\Notre Dame\Git\data-reduction-routines\workflows\pcb_main";
+
+pcbFunctionDir = fullfile( ...
+    pcbWorkflowDir, ...
+    "functions");
+
+repositoryDir = fileparts( ...
+    fileparts(pcbWorkflowDir));
+
+globalFunctionDir = fullfile( ...
+    repositoryDir, ...
+    "matlab", ...
+    "global");
+
+assert(isfolder(pcbWorkflowDir), ...
+    'PCB workflow folder does not exist: %s', pcbWorkflowDir);
+
+assert(isfolder(pcbFunctionDir), ...
+    'PCB functions folder does not exist: %s', pcbFunctionDir);
+
+assert(isfolder(globalFunctionDir), ...
+    'Global MATLAB folder does not exist: %s', globalFunctionDir);
+
+addpath(pcbWorkflowDir);
+addpath(pcbFunctionDir);
+addpath(genpath(globalFunctionDir));
+
+fprintf("PCB workflow paths added for this MATLAB session.\n");
+
+%% Start from the complete default configuration
 
 cfg = createPcbConfig();
 
@@ -61,8 +93,8 @@ cfg.output.resultsFile = fullfile( ...
 cfg.output.saveTracePlots = true;
 cfg.output.saveSpectrogramData = true;
 cfg.output.saveSpectrogramPlots = true;
-cfg.output.saveWindowedPsdPlots = false;
-cfg.output.saveRawPcbDataInResults = false;
+cfg.output.saveWindowedPsdPlots = true;
+cfg.output.saveRawPcbDataInResults = true;
 
 %% Products -- choose what this run should generate
 % Required upstream calculations run automatically. For example,
@@ -76,7 +108,7 @@ cfg.run.spectrogramPlots = true;
 cfg.run.windowedPsd = true;
 cfg.run.windowedPsdPreview = true;
 cfg.run.secondModeAnalysis = true;
-cfg.run.saveResults = false;
+cfg.run.saveResults = true;
 cfg.run.closeFiguresAtStart = true;
 
 %% Common analysis choices
@@ -127,6 +159,19 @@ cfg.secondMode.frequencyBand = [100e3 180e3];
 cfg.secondMode.minimumProminenceDb = 4;
 cfg.secondMode.minimumWidth = 10e3;
 cfg.secondMode.fitHalfWidth = 20e3;
+
+%% Report settings
+
+cfg.report.title = "Alignment Test — 60 psi";
+cfg.report.author = "Notre Dame Hypersonics Laboratory";
+
+cfg.report.minimumAppearanceWindows = 2;
+cfg.report.minimumDisappearanceWindows = 2;
+cfg.report.bridgeMissingWindows = 1;
+
+cfg.output.reportFile = fullfile( ...
+    cfg.output.rootFolder, ...
+    "alignment_60psi_report.pdf");
 
 %% Save this exact configuration and run it
 
