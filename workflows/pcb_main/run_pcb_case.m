@@ -6,7 +6,7 @@
 
 % Set this to the pcb_main folder in your local repository.
 pcbWorkflowDir = ...
-    "C:\Users\coled_agkeohi\Notre Dame\Git\data-reduction-routines\workflows\pcb_main";
+    "C:\Users\coled\Notre Dame\Github\data-reduction-routines\workflows\pcb_main";
 
 pcbFunctionDir = fullfile( ...
     pcbWorkflowDir, ...
@@ -47,12 +47,12 @@ cfg = createPcbConfig();
 %   cfg.input.file        normalized or supported legacy MAT-file
 
 dataRoot = ...
-    "C:\Users\coled_agkeohi\Notre Dame\PCB_test_workflow_data";
-cfg.input.source = "pnrf";
+    "C:\Users\coled\Notre Dame\final_test_pcb_workflow";
+cfg.input.source = "mat";
 cfg.input.rawFolder = fullfile(dataRoot, "raw_pnrf_files");
-cfg.input.rawFileName = "alignment_60psi_feb2026.pNRF";
+cfg.input.rawFileName = "HCHC_90psi_feb2026.pnrf";
 cfg.input.file = fullfile( ...
-    dataRoot, "matlab_exports", "alignment_60psi_feb2026.mat");
+    dataRoot, "matlab_exports", "HCHC_90psi_feb2026.mat");
 
 %% Channels -- change when the recorder layout changes
 % recorderLabels follows Perception recorder order. driver, trigger, and
@@ -62,7 +62,7 @@ cfg.channels.recorderLabels = ["A", "B", "C", "D"];
 cfg.channels.maxPerRecorder = 8;
 cfg.channels.driver = "A01";
 cfg.channels.trigger = "B01";
-cfg.channels.data = ["C01", "C02", "D01"];
+cfg.channels.data = ["C01", "C02", "C03", "C04", "D01", "D02", "D03", "D04"];
 cfg.channels.driverSamplingRate = 250e3;
 cfg.channels.triggerSamplingRate = 250e3;
 cfg.channels.dataSamplingRate = 2e6;
@@ -116,7 +116,7 @@ cfg.run.closeFiguresAtStart = true;
 % manualTimeRange=[start end] in seconds. channelsExcluded affects only
 % second-mode calculations; excluded channels remain visible in plots.
 
-cfg.analysis.interval = "quasiSteady";
+cfg.analysis.interval = "full";
 cfg.analysis.manualTimeRange = [0 1];
 cfg.analysis.onInvalidQuasiSteadyWindow = "useFullRecord";
 
@@ -131,7 +131,7 @@ cfg.timing.triggerThreshold = 2.5;
 cfg.timing.triggerHysteresis = 2.3;
 cfg.timing.triggerHoldTime = 0.002;
 cfg.timing.driverFlatEvaluationInterval = 0.001;
-cfg.timing.pcbAnalysisChannel = "C02";
+cfg.timing.pcbAnalysisChannel = "D02"; % this is important - choose a trustworthy PCB
 
 %% Spectral settings -- tune when time/frequency resolution changes
 % Spectrogram windowLength is samples. PSD durations are seconds. A smaller
@@ -146,8 +146,8 @@ cfg.psd.windowStep = 0.050;
 cfg.psd.welchSegmentDuration = cfg.psd.windowDuration / 40;
 cfg.psd.welchOverlap = 0.50;
 cfg.psd.detrend = "linear";
-cfg.psd.plotFrequencyBand = [50e3 300e3];
-cfg.psd.previewWindowIndices = 4:5;
+cfg.psd.plotFrequencyBand = [50e3 800e3];
+cfg.psd.previewWindowIndices = 10:12;
 
 %% Second-mode settings
 % Excluded channels remain in plots. frequencyBand limits the search;
@@ -163,7 +163,7 @@ cfg.secondMode.fitHalfWidth = 20e3;
 %% Report settings
 
 cfg.report.title = "Alignment Test — 60 psi";
-cfg.report.author = "Notre Dame Hypersonics Laboratory";
+cfg.report.author = "Cole Peters";
 
 cfg.report.minimumAppearanceWindows = 2;
 cfg.report.minimumDisappearanceWindows = 2;
@@ -180,7 +180,7 @@ if ~isfolder(cfg.output.rootFolder)
 end
 
 cfgFile = fullfile( ...
-    cfg.output.rootFolder, "alignment_60psi_cfg.mat");
+    cfg.output.rootFolder, "HCHC_90psi_cfg.mat");
 save(cfgFile, 'cfg');
 
 results = run_pcb_main(cfgFile);

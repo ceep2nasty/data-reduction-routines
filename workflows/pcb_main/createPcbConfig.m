@@ -182,7 +182,7 @@ cfg.output.resultsFile = fullfile( ...
 cfg.output.saveTracePlots = true; % Save enabled full/steady trace figures.
 cfg.output.saveSpectrogramData = true; % Save numerical STFT MAT files.
 cfg.output.saveSpectrogramPlots = true; % Save enabled STFT figures.
-cfg.output.saveWindowedPsdPlots = false; % Save requested PSD previews.
+cfg.output.saveWindowedPsdPlots = false; % Save every PSD window, independently of previews.
 
 % Raw pcbData can be large. It remains in the returned results but is
 % omitted from a saved results file unless this is true.

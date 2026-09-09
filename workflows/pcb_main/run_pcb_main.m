@@ -165,11 +165,11 @@ if stages.needsWindowedPsd
         numel(results.windowedPsd.channels));
 end
 
-if cfg.run.windowedPsdPreview
+if cfg.run.windowedPsdPreview || cfg.output.saveWindowedPsdPlots
     fprintf('\n--- Plotting windowed PSD preview ---\n');
     results.figures.windowedPsd = ...
         plotWindowedPcbPsd(cfg, results.windowedPsd);
-    results.stageStatus.windowedPsdPreview = true;
+    results.stageStatus.windowedPsdPreview = cfg.run.windowedPsdPreview;
 end
 
 %% Second-mode analysis
@@ -222,7 +222,8 @@ end
 function stages = resolveStages(cfg)
 stages = struct();
 stages.needsWindowedPsd = cfg.run.windowedPsd || ...
-    cfg.run.windowedPsdPreview || cfg.run.secondModeAnalysis;
+    cfg.run.windowedPsdPreview || cfg.run.secondModeAnalysis || ...
+    cfg.output.saveWindowedPsdPlots;
 stages.needsQuasiSteadyWindow = ...
     cfg.run.quasiSteadyTracePlots || cfg.run.steadySpectrogram || ...
     (stages.needsWindowedPsd && ...
