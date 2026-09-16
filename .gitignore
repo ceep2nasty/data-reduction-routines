@@ -1,3 +1,9 @@
+# Python environments and caches
+.venv/
+.uv-cache/
+__pycache__/
+*.py[cod]
+
 # MATLAB autosave / temporary files
 *.asv
 *.m~
