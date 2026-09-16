@@ -76,14 +76,38 @@ for windowIndex = renderIndices
         fileName = sprintf('pcb_psd_%07.4f_%07.4f_s.png', ...
             psdResults.windowStartTime(windowIndex), ...
             psdResults.windowEndTime(windowIndex));
-        exportgraphics(axesHandle, fullfile( ...
-            cfg.output.windowedPsdFolder, fileName), 'Resolution', 300);
+        outputFile = fullfile(cfg.output.windowedPsdFolder, fileName);
+        exportPsdPng(axesHandle, outputFile);
     end
     if ~isempty(previewIndex)
         figures(previewIndex) = plotFigure;
         set(plotFigure, 'Visible', 'on');
     end
     clear cleanupFigure
+end
+end
+
+function exportPsdPng(axesHandle, outputFile)
+% Render locally before writing to the destination (which may be synced).
+temporaryFile = [tempname '.png'];
+cleanupFile = onCleanup(@() deleteTemporaryFile(temporaryFile));
+try
+    exportgraphics(axesHandle, temporaryFile, 'Resolution', 300);
+catch exception
+    error('plotWindowedPcbPsd:PngRenderFailed', ...
+        'Could not render PSD PNG to temporary file "%s": %s', ...
+        temporaryFile, exception.message);
+end
+[copied, message] = copyfile(temporaryFile, outputFile);
+if ~copied
+    error('plotWindowedPcbPsd:PngSaveFailed', ...
+        'Could not save PSD PNG to "%s": %s', outputFile, message);
+end
+end
+
+function deleteTemporaryFile(fileName)
+if isfile(fileName)
+    delete(fileName);
 end
 end
 

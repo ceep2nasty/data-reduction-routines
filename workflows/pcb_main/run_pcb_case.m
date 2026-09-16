@@ -104,11 +104,11 @@ cfg.run.fullTracePlots = true;
 cfg.run.quasiSteadyTracePlots = true;
 cfg.run.steadySpectrogram = true;
 cfg.run.fullSpectrogram = true;
-cfg.run.spectrogramPlots = true;
+cfg.run.spectrogramPlots = false;
 cfg.run.windowedPsd = true;
 cfg.run.windowedPsdPreview = true;
 cfg.run.secondModeAnalysis = true;
-cfg.run.saveResults = true;
+cfg.run.saveResults = false;
 cfg.run.closeFiguresAtStart = true;
 
 %% Common analysis choices
@@ -138,15 +138,15 @@ cfg.timing.pcbAnalysisChannel = "D02"; % this is important - choose a trustworth
 % PSD windowStep creates overlapping reported measurements. plotFrequencyBand
 % affects only previews; secondMode.frequencyBand controls detection.
 
-cfg.spectrogram.windowLength = 1000;
+cfg.spectrogram.windowLength = 20000; % 100 Hz bin spacing (samplingRate/windowLength)
 cfg.spectrogram.overlap = 0.75;
-cfg.spectrogram.frequencyBand = [50e3 800e3];
-cfg.psd.windowDuration = 0.050;
+cfg.spectrogram.frequencyBand = [100 1e3];
+cfg.psd.windowDuration = 0.200;
 cfg.psd.windowStep = 0.050;
-cfg.psd.welchSegmentDuration = cfg.psd.windowDuration / 40;
+cfg.psd.welchSegmentDuration = 0.050; % 50 ms segments; 20 Hz bin spacing
 cfg.psd.welchOverlap = 0.50;
 cfg.psd.detrend = "linear";
-cfg.psd.plotFrequencyBand = [50e3 800e3];
+cfg.psd.plotFrequencyBand = [100 1e3];
 cfg.psd.previewWindowIndices = 10:12;
 
 %% Second-mode settings
