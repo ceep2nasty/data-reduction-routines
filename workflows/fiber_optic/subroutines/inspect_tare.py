@@ -7,8 +7,7 @@ from load_fos_case import read_fos_tsv
 
 def main():
     source_file = Path(
-        r"C:\Users\coled\Notre Dame\FTSI F26\lunaData\test_16SEP"
-    ) / "CPT_amplitude_0.1016mm_2026-07-16_23-21-12_ch1_gages.tsv"
+        "C:/Users/coled/Notre Dame/FTSI F26/lunaData/1D_1Mode_test1/1mm_NoLoad_2026-09-17_19-47-16_ch1_gages.tsv")
 
     recording = read_fos_tsv(source_file)
 
@@ -40,18 +39,18 @@ def main():
     corrected_mean = mean_over_time(corrected)
 
     fig, axes = plt.subplots(
-        4, 1,
+        1, 1,
         figsize=(11, 10),
         constrained_layout=True,
     )
 
     for pass_number, ax in enumerate(axes, start=1):
         start = recording["markers"][
-            f"Pass {pass_number} Start"
+            "Beginning ROI"
         ]["position_m"]
 
         end = recording["markers"][
-            f"Pass {pass_number} End"
+            f"End ROI"
         ]["position_m"]
 
         mask = (
@@ -90,4 +89,4 @@ def main():
     return recording
 
 if __name__ == "__main__":
-    main()
+    recording = main()
