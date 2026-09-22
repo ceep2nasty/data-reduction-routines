@@ -31,6 +31,44 @@ def collect_runs(data_dir=DATA_DIR, baseline_file=BASELINE_FILE):
     return results
 
 
+def collect_repeats(data_dir=DATA_DIR, baseline_file=BASELINE_FILE):
+    """Collect recordings 1, 2, and 3 for each case using a common baseline."""
+    repeat_results = {}
+    for prefix, amplitude in RUN_GROUPS:
+        base_prefix = prefix.split("_NoLoad")[0] + "_NoLoad"
+        case_results = []
+        for suffix in ("", "2", "3"):
+            files = sorted(Path(data_dir).glob(f"{base_prefix}{suffix}_*_ch1_gages.tsv"))
+            if len(files) != 1:
+                raise ValueError(f"Expected one recording for {base_prefix}{suffix}; found {len(files)}")
+            case_results.append(compute_1D_shape(
+                files[0], baseline_file, imposed_amplitude_mm=amplitude,
+            ))
+        repeat_results[base_prefix] = case_results
+    return repeat_results
+
+
+def plot_repeats(repeat_results):
+    """Overlay baseline-relative mean strain for the three recordings per case."""
+    fig, axes = plt.subplots(
+        len(repeat_results), 1, figsize=(10, 9), sharex=True,
+        squeeze=False, constrained_layout=True,
+    )
+    for ax, case_results in zip(axes[:, 0], repeat_results.values()):
+        for number, result in enumerate(case_results, start=1):
+            ax.plot(
+                result["x_strain_mm"], result["mean_strain"] * 1e6,
+                marker=".", markersize=4, label=f"Recording {number}",
+            )
+        ax.set_title(f"{case_results[0]['imposed_amplitude_mm']:g} mm case")
+        ax.set_ylabel("Mean strain (µε)")
+        ax.grid(True, alpha=0.3)
+        ax.legend()
+    axes[-1, 0].set_xlabel("Position from ROI start (mm)")
+    fig.suptitle("First, second, and third recordings — common baseline")
+    return fig, axes[:, 0]
+
+
 def inspect_runs(results):
     """Print fit and missing-data summaries without opening figures."""
     for result in results:
@@ -162,16 +200,19 @@ if __name__ == "__main__":
     fig, axes = plot_normalized(results)
     case_plots = [plot_case(result) for result in results]
     raw_fig, raw_axes = plot_raw_shift(results)
+    repeat_results = collect_repeats()
+    repeat_fig, repeat_axes = plot_repeats(repeat_results)
 
     # Save all figures beside the source data before opening the plot windows.
     output_dir = results[0]["source_file"].parent / "outputs"
     output_dir.mkdir(parents=True, exist_ok=True)
     fig.savefig(output_dir / "normalized_comparison.png", dpi=300, bbox_inches="tight")
     raw_fig.savefig(output_dir / "raw_optical_shift.png", dpi=300, bbox_inches="tight")
+    repeat_fig.savefig(output_dir / "recording_comparison.png", dpi=300, bbox_inches="tight")
     for result, (case_fig, _) in zip(results, case_plots):
         case_fig.savefig(
             output_dir / f"{result['source_file'].stem}_shape_strain.png",
             dpi=300, bbox_inches="tight",
         )
-    print(f"Saved {2 + len(case_plots)} PNG figures to {output_dir}")
+    print(f"Saved {3 + len(case_plots)} PNG figures to {output_dir}")
     plt.show()
