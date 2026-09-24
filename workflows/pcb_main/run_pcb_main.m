@@ -23,6 +23,7 @@ assert(isfolder(globalDir), ...
 
 addpath(functionDir);
 addpath(genpath(globalDir));
+cfg = selectPcbSensors(cfg);
 validatePcbConfig(cfg);
 
 additionalFolders = string(cfg.paths.additionalFolders(:));
@@ -46,8 +47,8 @@ switch string(cfg.input.source)
     case "pnrf"
         fprintf('\n--- Converting PNRF data ---\n');
         pcbData = convertPnrfData(cfg);
-    case "mat"
-        fprintf('\n--- Loading MAT data ---\n');
+    case {"mat", "txt"}
+        fprintf('\n--- Loading %s data ---\n', upper(string(cfg.input.source)));
         pcbData = loadPcbData(cfg);
 end
 results.pcbData = pcbData;

@@ -9,7 +9,7 @@ function spectrogramFig = plotPcbSpectrogram(cfg, spectrogramResults, outputLabe
     for channelIndex = 1:numberOfChannels
     spectrogramFig(channelIndex) = figure('Name', ...
         outputLabel + " spectrogram " + ...
-        spectrogramResults.channels(channelIndex));
+        pcbChannelLabel(cfg, spectrogramResults.channels(channelIndex)));
 
     pcolor( ...
         spectrogramResults.time{channelIndex}, ...
@@ -20,7 +20,7 @@ function spectrogramFig = plotPcbSpectrogram(cfg, spectrogramResults, outputLabe
     xlabel('Time (s)');
     ylabel('Frequency (kHz)');
     title(outputLabel + " spectrogram " + ...
-        spectrogramResults.channels(channelIndex));
+        pcbChannelLabel(cfg, spectrogramResults.channels(channelIndex)));
 
     colormap(cfg.spectrogram.colormap);
     colorbar;

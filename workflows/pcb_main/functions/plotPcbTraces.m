@@ -50,7 +50,7 @@ grid on
 
 for i = 1:length(plotDataData.channels)
     plot(plotDataData.time{i}, plotDataData.signal{i}, ...
-        'DisplayName', plotDataData.channels(i));
+        'DisplayName', pcbChannelLabel(cfg, plotDataData.channels(i)));
 end
 
 xlabel('Time (s)', 'FontSize', cfg.plotting.fontSize);

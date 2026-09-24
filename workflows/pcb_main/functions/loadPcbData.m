@@ -1,9 +1,27 @@
 function pcbData = loadPcbData(cfg)
-%LOADPCBDATA Load and normalize a converted PCB MAT-file.
+%LOADPCBDATA Load a converted MAT-file or Perception text export.
 
 filePath = string(cfg.input.file);
-loadedData = load(filePath);
+if string(cfg.input.source) == "txt"
+    pcbData = readTextExport(filePath);
+    rates = [cfg.channels.driverSamplingRate, ...
+        cfg.channels.triggerSamplingRate, cfg.channels.dataSamplingRate];
+    assert(all(abs(rates / pcbData.exportSamplingRate - 1) < 1e-3), ...
+        'loadPcbData:SamplingRateMismatch', ...
+        'Configured rates must match the text export grid (%.9g Hz).', ...
+        pcbData.exportSamplingRate);
+else
+    pcbData = readMatFile(filePath, cfg);
+end
 
+validateNormalizedData(pcbData, filePath);
+pcbData.channels = string(pcbData.channels(:));
+pcbData.signalData = pcbData.signalData(:);
+fprintf('Loaded PCB data: %s\n', filePath);
+end
+
+function pcbData = readMatFile(filePath, cfg)
+loadedData = load(filePath);
 if isfield(loadedData, 'pcbData')
     pcbData = loadedData.pcbData;
 elseif isfield(loadedData, 'blockData')
@@ -22,10 +40,46 @@ if isstruct(pcbData) && ~isfield(pcbData, 'channels') && ...
     pcbData = normalizeLegacyPerceptionData(pcbData, cfg);
 end
 
-validateNormalizedData(pcbData, filePath);
-pcbData.channels = string(pcbData.channels(:));
-pcbData.signalData = pcbData.signalData(:);
-fprintf('Loaded PCB data: %s\n', filePath);
+end
+
+function pcbData = readTextExport(filePath)
+fid = fopen(filePath, 'rt');
+assert(fid >= 0, 'loadPcbData:OpenFailed', 'Cannot open %s.', filePath);
+cleanup = onCleanup(@() fclose(fid));
+header = "";
+while ~feof(fid)
+    line = string(fgetl(fid));
+    if startsWith(line, "Time" + char(9))
+        header = line;
+        break
+    end
+end
+assert(header ~= "", 'loadPcbData:MissingHeader', 'No Time/channel header found.');
+names = split(strtrim(header), char(9));
+columns = find(startsWith(names, "Ch "));
+channels = extractAfter(names(columns), "Ch ");
+assert(~isempty(channels) && numel(unique(channels)) == numel(channels), ...
+    'loadPcbData:InvalidTextChannels', 'Expected unique analog channel names.');
+fgetl(fid); % Units row.
+formats = repmat("%*f", size(names));
+formats([1; columns]) = "%f";
+values = textscan(fid, char(join(formats, "")), ...
+    'Delimiter', '\t', 'ReturnOnError', false);
+time = values{1};
+dt = median(diff(time));
+assert(numel(time) > 1 && all(isfinite(time)) && dt > 0 && ...
+    all(abs(diff(time) - dt) < dt * 1e-3), ...
+    'loadPcbData:InvalidTextTime', 'Expected finite, uniformly increasing time.');
+signalData = repmat(struct('time', time, 'signal', []), numel(channels), 1);
+for k = 1:numel(channels)
+    signal = values{k+1};
+    assert(numel(signal) == numel(time) && all(isfinite(signal)), ...
+        'loadPcbData:InvalidTextSignal', 'Incomplete or nonfinite channel %s.', channels(k));
+    signalData(k).signal = signal;
+end
+% Preserve all analog inputs; low-amplitude noise does not prove disconnection.
+pcbData = struct('channels', channels, 'signalData', signalData, ...
+    'exportSamplingRate', 1/dt);
 end
 
 function pcbData = normalizeLegacyPerceptionData(legacyData, cfg)
