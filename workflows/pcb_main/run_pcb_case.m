@@ -2,8 +2,40 @@
 % This is the file to edit for a new recording. Every supported setting and
 % its full explanation lives in createPcbConfig.m.
 
+%% Establish repository paths
+
+% Locate this workflow relative to the script.
 callerDir = fileparts(mfilename('fullpath'));
-addpath(callerDir);
+pcbWorkflowDir = callerDir;
+
+pcbFunctionDir = fullfile( ...
+    pcbWorkflowDir, ...
+    "functions");
+
+repositoryDir = fileparts( ...
+    fileparts(pcbWorkflowDir));
+
+globalFunctionDir = fullfile( ...
+    repositoryDir, ...
+    "matlab", ...
+    "global");
+
+assert(isfolder(pcbWorkflowDir), ...
+    'PCB workflow folder does not exist: %s', pcbWorkflowDir);
+
+assert(isfolder(pcbFunctionDir), ...
+    'PCB functions folder does not exist: %s', pcbFunctionDir);
+
+assert(isfolder(globalFunctionDir), ...
+    'Global MATLAB folder does not exist: %s', globalFunctionDir);
+
+addpath(pcbWorkflowDir);
+addpath(pcbFunctionDir);
+addpath(genpath(globalFunctionDir));
+
+fprintf("PCB workflow paths added for this MATLAB session.\n");
+
+%% Start from the complete default configuration
 
 cfg = createPcbConfig();
 
@@ -110,7 +142,7 @@ cfg.timing.pcbAnalysisChannel = "D05";
 % PSD windowStep creates overlapping reported measurements. plotFrequencyBand
 % affects only previews; secondMode.frequencyBand controls detection.
 
-cfg.spectrogram.windowLength = 1000;
+cfg.spectrogram.windowLength = 20000; % 100 Hz bin spacing (samplingRate/windowLength)
 cfg.spectrogram.overlap = 0.75;
 cfg.spectrogram.frequencyBand = [50e3 800e3];
 cfg.psd.windowDuration = 0.100;

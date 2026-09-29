@@ -1,8 +1,13 @@
 function figures = plotWindowedPcbPsd(cfg, psdResults)
-%PLOTWINDOWEDPCBPSD Plot selected windowed PSDs for all PCB channels.
+%PLOTWINDOWEDPCBPSD Save all PSD windows and independently preview selections.
+% Returned handles contain only preview figures. Export-only figures are
+% created invisibly and closed immediately after saving.
 
 windowCount = numel(psdResults.windowCenterTime);
 requestedIndices = cfg.psd.previewWindowIndices;
+if ~cfg.run.windowedPsdPreview
+    requestedIndices = [];
+end
 if isstring(requestedIndices) && requestedIndices == "all"
     windowIndices = 1:windowCount;
 else
@@ -16,11 +21,14 @@ if ~isempty(unavailableIndices)
         'window(s) are available.'], num2str(unavailableIndices), windowCount);
     windowIndices(windowIndices > windowCount) = [];
 end
-if isempty(windowIndices)
+if isempty(windowIndices) && cfg.run.windowedPsdPreview
     warning('plotWindowedPcbPsd:NoAvailableWindows', ...
         'No requested PSD preview windows are available.');
-    figures = gobjects(0, 1);
-    return
+end
+windowIndices = unique(windowIndices, 'stable');
+renderIndices = windowIndices;
+if cfg.output.saveWindowedPsdPlots
+    renderIndices = 1:windowCount;
 end
 
 if cfg.output.saveWindowedPsdPlots && ...
@@ -33,14 +41,16 @@ frequencyKHz = psdResults.frequency / 1e3;
 plotBandKHz = cfg.psd.plotFrequencyBand / 1e3;
 colors = lines(numel(psdResults.channels));
 
-for plotIndex = 1:numel(windowIndices)
-    windowIndex = windowIndices(plotIndex);
+for windowIndex = renderIndices
+    previewIndex = find(windowIndices == windowIndex, 1);
     figureName = sprintf('PCB PSD %.4f-%.4f s', ...
         psdResults.windowStartTime(windowIndex), ...
         psdResults.windowEndTime(windowIndex));
-    figures(plotIndex) = figure('Name', figureName, ...
-        'Position', cfg.plotting.figurePosition);
-    axesHandle = axes('Parent', figures(plotIndex));
+    plotFigure = figure('Name', figureName, ...
+        'Position', cfg.plotting.figurePosition, 'Visible', 'off');
+    % Also release an export-only figure if plotting or saving fails.
+    cleanupFigure = onCleanup(@() closeExportFigure(plotFigure, isempty(previewIndex)));
+    axesHandle = axes('Parent', plotFigure);
     hold(axesHandle, 'on');
     grid(axesHandle, 'on');
     box(axesHandle, 'on');
@@ -66,8 +76,43 @@ for plotIndex = 1:numel(windowIndices)
         fileName = sprintf('pcb_psd_%07.4f_%07.4f_s.png', ...
             psdResults.windowStartTime(windowIndex), ...
             psdResults.windowEndTime(windowIndex));
-        exportgraphics(figures(plotIndex), fullfile( ...
-            cfg.output.windowedPsdFolder, fileName), 'Resolution', 300);
+        outputFile = fullfile(cfg.output.windowedPsdFolder, fileName);
+        exportPsdPng(axesHandle, outputFile);
     end
+    if ~isempty(previewIndex)
+        figures(previewIndex) = plotFigure;
+        set(plotFigure, 'Visible', 'on');
+    end
+    clear cleanupFigure
+end
+end
+
+function exportPsdPng(axesHandle, outputFile)
+% Render locally before writing to the destination (which may be synced).
+temporaryFile = [tempname '.png'];
+cleanupFile = onCleanup(@() deleteTemporaryFile(temporaryFile));
+try
+    exportgraphics(axesHandle, temporaryFile, 'Resolution', 300);
+catch exception
+    error('plotWindowedPcbPsd:PngRenderFailed', ...
+        'Could not render PSD PNG to temporary file "%s": %s', ...
+        temporaryFile, exception.message);
+end
+[copied, message] = copyfile(temporaryFile, outputFile);
+if ~copied
+    error('plotWindowedPcbPsd:PngSaveFailed', ...
+        'Could not save PSD PNG to "%s": %s', outputFile, message);
+end
+end
+
+function deleteTemporaryFile(fileName)
+if isfile(fileName)
+    delete(fileName);
+end
+end
+
+function closeExportFigure(fig, exportOnly)
+if exportOnly && isgraphics(fig)
+    close(fig);
 end
 end

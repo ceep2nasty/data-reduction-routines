@@ -145,10 +145,34 @@ cfg.secondMode.minimumProminenceDb = 4; % Minimum local separation [dB].
 cfg.secondMode.minimumWidth = 10e3; % Minimum findpeaks width [Hz].
 cfg.secondMode.fitHalfWidth = 20e3; % Parabola region around peak [Hz].
 
+
+%% PDF report
+
+cfg.report.title = "PCB Test Report";
+cfg.report.author = "Cole Peters";
+
+% A second-mode detection must persist this many PSD windows before it is
+% treated as a real appearance or disappearance.
+cfg.report.minimumAppearanceWindows = 2;
+cfg.report.minimumDisappearanceWindows = 2;
+
+% Bridge isolated missed detections surrounded by valid detections.
+cfg.report.bridgeMissingWindows = 1;
+
+% Frequency limits for the representative PSD plot.
+cfg.report.psdFrequencyBand = cfg.psd.plotFrequencyBand;
+
+% Keep report figures open after generating the PDF.
+cfg.report.keepFiguresOpen = false;
+
+
 %% Output files
 
 cfg.output.rootFolder = ...
     "C:\Users\coled_agkeohi\Notre Dame\PCB_test_workflow_data";
+    cfg.output.reportFile = fullfile( ...
+    cfg.output.rootFolder, ...
+    "pcb_test_report.pdf");
 cfg.output.convertedDataFolder = fullfile( ...
     cfg.output.rootFolder, "matlab_exports");
 cfg.output.tracePlotFolder = fullfile( ...
@@ -163,7 +187,7 @@ cfg.output.resultsFile = fullfile( ...
 cfg.output.saveTracePlots = true; % Save enabled full/steady trace figures.
 cfg.output.saveSpectrogramData = true; % Save numerical STFT MAT files.
 cfg.output.saveSpectrogramPlots = true; % Save enabled STFT figures.
-cfg.output.saveWindowedPsdPlots = false; % Save requested PSD previews.
+cfg.output.saveWindowedPsdPlots = false; % Save every PSD window, independently of previews.
 
 % Raw pcbData can be large. It remains in the returned results but is
 % omitted from a saved results file unless this is true.
