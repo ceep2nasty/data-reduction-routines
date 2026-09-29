@@ -56,9 +56,16 @@ switch lower(extension)
         cfg.conversion.mode = "memory";
         pcbData = convertPnrfData(cfg);
     case '.mat'
+        cfg.input.source = "mat";
+        pcbData = loadPcbData(cfg);
+    case '.txt'
+        cfg.input.source = "txt";
+        cfg.channels.driverSamplingRate = cfg.channels.driverSamplingRate_Hz;
+        cfg.channels.triggerSamplingRate = cfg.channels.triggerSamplingRate_Hz;
+        cfg.channels.dataSamplingRate = cfg.channels.pcbSamplingRate_Hz(:)';
         pcbData = loadPcbData(cfg);
     otherwise
-        error('exportPcbRun:InputType', 'Input must be .pnrf or .mat.');
+        error('exportPcbRun:InputType', 'Input must be .pnrf, .mat, or .txt.');
 end
 available = string(pcbData.channels(:));
 assert(all(ismember(ids, available)), 'exportPcbRun:MissingChannels', ...

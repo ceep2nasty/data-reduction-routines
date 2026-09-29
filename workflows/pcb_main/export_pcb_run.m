@@ -6,6 +6,7 @@
 
 %% USER INPUTS — FILE LOCATIONS
 cfg = struct();
+% Input type is inferred from .pnrf, .mat, or Perception .txt extension.
 cfg.input.file = "C:\Users\coled\Notre Dame\heatedCone_F26\AFOSR_Heated_Cone_Jan2026\PCB_Data\Iso_90psi\Iso_90psi_001.txt";
 cfg.output.file = "C:\Users\coled\Notre Dame\heatedCone_F26\pcb_share\Jan2026\Isothermal_90psi";
 cfg.input.variable = "Perception_Raw"; % Legacy MAT variable, if needed.
@@ -39,8 +40,10 @@ cfg.channels.trigger = "B01";
 %% USER INPUTS — SAMPLING RATES (Hz)
 % NaN = infer from recorded timestamps; enter a value to check against them.
 cfg.channels.pcbSamplingRate_Hz = repmat(2e6, 1, 7);
-cfg.channels.driverSamplingRate_Hz = 250e3;
-cfg.channels.triggerSamplingRate_Hz = 250e3;
+% January TXT uses a 2 MHz export grid for all channels.
+% February PNRF driver/trigger use 250e3; NaN infers either from timestamps.
+cfg.channels.driverSamplingRate_Hz = 2e6;
+cfg.channels.triggerSamplingRate_Hz = 2e6;
 
 %% USER INPUTS — PCB CALIBRATION (OPTIONAL; NaN = UNKNOWN)
 % One constant per PCB, in the channel order above. Stored only, NOT applied.

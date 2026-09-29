@@ -9,18 +9,18 @@ cfg = createPcbConfig();
 
 %% Case root and input files -- usually change these
 % Available settings:
-%   cfg.input.source      "pnrf" or "mat"
+%   cfg.input.source      "pnrf", "mat", or "txt"
 %   cfg.input.rawFolder   folder containing a raw PNRF recording
 %   cfg.input.rawFileName exact PNRF filename
-%   cfg.input.file        normalized or supported legacy MAT-file
+%   cfg.input.file        converted MAT-file or Perception text export
 
 dataRoot = ...
-    "C:\Users\coled_agkeohi\Notre Dame\PCB_test_workflow_data";
-cfg.input.source = "pnrf";
+    "C:\Users\coled\Notre Dame\heatedCone_F26\AFOSR_Heated_Cone_Jan2026";
+cfg.input.source = "txt";
 cfg.input.rawFolder = fullfile(dataRoot, "raw_pnrf_files");
-cfg.input.rawFileName = "alignment_60psi_feb2026.pNRF";
+cfg.input.rawFileName = ""; % Unused for text input.
 cfg.input.file = fullfile( ...
-    dataRoot, "matlab_exports", "alignment_60psi_feb2026.mat");
+    dataRoot, "PCB_Data", "Iso_90psi", "Iso_90psi_001.txt");
 
 %% Channels -- change when the recorder layout changes
 % recorderLabels follows Perception recorder order. driver, trigger, and
@@ -30,9 +30,13 @@ cfg.channels.recorderLabels = ["A", "B", "C", "D"];
 cfg.channels.maxPerRecorder = 8;
 cfg.channels.driver = "A01";
 cfg.channels.trigger = "B01";
-cfg.channels.data = ["C01", "C02", "D01"];
-cfg.channels.driverSamplingRate = 250e3;
-cfg.channels.triggerSamplingRate = 250e3;
+% January mapping established by the reference spectra and legacy selection.
+cfg.channels.data = ["D01", "D02", "C01", "D05", "D08", "D07", "D06"];
+cfg.channels.sensorNumbers = [2 3 4 5 6 7 8];
+cfg.channels.order = [2 3 4 5 6 7 8]; % Select/reorder physical sensor numbers.
+% Export grid rates, not necessarily the original recorder acquisition rates.
+cfg.channels.driverSamplingRate = 2e6;
+cfg.channels.triggerSamplingRate = 2e6;
 cfg.channels.dataSamplingRate = 2e6;
 
 %% External MATLAB folders -- normally leave empty
@@ -47,7 +51,7 @@ cfg.paths.additionalFolders = strings(0, 1);
 % switches write only products enabled in cfg.run. saveRawPcbDataInResults
 % controls whether the often-large normalized input is embedded in results.
 
-cfg.output.rootFolder = dataRoot;
+cfg.output.rootFolder = fullfile(callerDir, "outputs", "january", "Iso_90psi");
 cfg.output.convertedDataFolder = fullfile( ...
     cfg.output.rootFolder, "matlab_exports");
 cfg.output.tracePlotFolder = fullfile( ...
@@ -58,9 +62,9 @@ cfg.output.windowedPsdFolder = fullfile( ...
     cfg.output.rootFolder, "spectral_analysis", "PSD_plots");
 cfg.output.resultsFile = fullfile( ...
     cfg.output.rootFolder, "pcb_analysis_results.mat");
-cfg.output.saveTracePlots = true;
-cfg.output.saveSpectrogramData = true;
-cfg.output.saveSpectrogramPlots = true;
+cfg.output.saveTracePlots = false;
+cfg.output.saveSpectrogramData = false;
+cfg.output.saveSpectrogramPlots = false;
 cfg.output.saveWindowedPsdPlots = false;
 cfg.output.saveRawPcbDataInResults = false;
 
@@ -68,24 +72,24 @@ cfg.output.saveRawPcbDataInResults = false;
 % Required upstream calculations run automatically. For example,
 % secondModeAnalysis computes windowed PSD data even when windowedPsd=false.
 
-cfg.run.fullTracePlots = true;
-cfg.run.quasiSteadyTracePlots = true;
-cfg.run.steadySpectrogram = true;
-cfg.run.fullSpectrogram = true;
-cfg.run.spectrogramPlots = true;
+cfg.run.fullTracePlots = false;
+cfg.run.quasiSteadyTracePlots = false;
+cfg.run.steadySpectrogram = false;
+cfg.run.fullSpectrogram = false;
+cfg.run.spectrogramPlots = false;
 cfg.run.windowedPsd = true;
 cfg.run.windowedPsdPreview = true;
-cfg.run.secondModeAnalysis = true;
+cfg.run.secondModeAnalysis = false;
 cfg.run.saveResults = false;
-cfg.run.closeFiguresAtStart = true;
+cfg.run.closeFiguresAtStart = false;
 
 %% Common analysis choices
 % interval: "quasiSteady", "full", or "manual". For manual analysis, set
 % manualTimeRange=[start end] in seconds. channelsExcluded affects only
 % second-mode calculations; excluded channels remain visible in plots.
 
-cfg.analysis.interval = "quasiSteady";
-cfg.analysis.manualTimeRange = [0 1];
+cfg.analysis.interval = "manual";
+cfg.analysis.manualTimeRange = [0.75 0.85];
 cfg.analysis.onInvalidQuasiSteadyWindow = "useFullRecord";
 
 %% Quasi-steady timing -- tune only when detection needs adjustment
@@ -99,7 +103,7 @@ cfg.timing.triggerThreshold = 2.5;
 cfg.timing.triggerHysteresis = 2.3;
 cfg.timing.triggerHoldTime = 0.002;
 cfg.timing.driverFlatEvaluationInterval = 0.001;
-cfg.timing.pcbAnalysisChannel = "C02";
+cfg.timing.pcbAnalysisChannel = "D05";
 
 %% Spectral settings -- tune when time/frequency resolution changes
 % Spectrogram windowLength is samples. PSD durations are seconds. A smaller
@@ -109,33 +113,25 @@ cfg.timing.pcbAnalysisChannel = "C02";
 cfg.spectrogram.windowLength = 1000;
 cfg.spectrogram.overlap = 0.75;
 cfg.spectrogram.frequencyBand = [50e3 800e3];
-cfg.psd.windowDuration = 0.050;
-cfg.psd.windowStep = 0.050;
+cfg.psd.windowDuration = 0.100;
+cfg.psd.windowStep = 0.100;
 cfg.psd.welchSegmentDuration = cfg.psd.windowDuration / 40;
 cfg.psd.welchOverlap = 0.50;
 cfg.psd.detrend = "linear";
-cfg.psd.plotFrequencyBand = [50e3 300e3];
-cfg.psd.previewWindowIndices = 4:5;
+cfg.psd.plotFrequencyBand = [0 800e3];
+cfg.psd.previewWindowIndices = 1;
 
 %% Second-mode settings
 % Excluded channels remain in plots. frequencyBand limits the search;
 % prominence rejects weak peaks; minimumWidth rejects narrow spikes;
 % fitHalfWidth sets the local parabolic-fit region.
 
-cfg.secondMode.channelsExcluded = "C01";
+cfg.secondMode.channelsExcluded = strings(0, 1);
 cfg.secondMode.frequencyBand = [100e3 180e3];
 cfg.secondMode.minimumProminenceDb = 4;
 cfg.secondMode.minimumWidth = 10e3;
 cfg.secondMode.fitHalfWidth = 20e3;
 
-%% Save this exact configuration and run it
+%% Run in memory without saving configuration, results, or figures
 
-if ~isfolder(cfg.output.rootFolder)
-    mkdir(cfg.output.rootFolder);
-end
-
-cfgFile = fullfile( ...
-    cfg.output.rootFolder, "alignment_60psi_cfg.mat");
-save(cfgFile, 'cfg');
-
-results = run_pcb_main(cfgFile);
+results = run_pcb_main(cfg);

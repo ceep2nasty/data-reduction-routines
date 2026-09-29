@@ -12,10 +12,15 @@ end
 
 cfg = struct();
 cfg.version = 1;
+% Optional physical numbering parallel to channels.data; order selects/reorders
+% these numbers for every analysis stage. Empty values preserve recorder order.
+cfg.channels.sensorNumbers = [];
+cfg.channels.order = [];
 
 %% Input data
 
-% "pnrf" converts a Perception recording; "mat" loads converted data.
+% "pnrf" converts a binary recording; "mat" or "txt" loads converted data.
+% Text exports use cfg.input.file and require rates matching their time grid.
 cfg.input.source = "pnrf";
 cfg.input.rawFolder = ...
     "C:\Users\coled_agkeohi\Notre Dame\PCB_test_workflow_data\raw_pnrf_files";

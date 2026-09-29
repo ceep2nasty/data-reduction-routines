@@ -48,6 +48,29 @@ verifyEqual(testCase, result.data.trigger.signal_V, pcbData.signalData(9).signal
 verifyEqual(testCase, result.data.pcb07.axialDistance_m, 0.97, 'AbsTol', 1e-12);
 verifyTrue(testCase, isnan(result.metadata.driver.recordedP0_Pa));
 verifyError(testCase, @() exportPcbRun(cfg), 'exportPcbRun:OutputExists');
+% Exercise TXT -> sharing MAT with event columns and unknown PCB calibration.
+cfg.input.file = string(fullfile(folder, 'input.txt'));
+cfg.output.file = string(fullfile(folder, 'text_output.mat'));
+fid = fopen(cfg.input.file, 'wt');
+fprintf(fid, 'File: synthetic\nTime');
+for id = pcbData.channels, fprintf(fid, '\tCh %s', id); end
+fprintf(fid, '\tEv A09_01\ns');
+for k=1:9, fprintf(fid, '\tV'); end
+fprintf(fid, '\t\n');
+for j=0:19
+    fprintf(fid, '%.9f', j/2e6);
+    fprintf(fid, '\t%.9f', (1:9)+j);
+    fprintf(fid, '\t99\t\n');
+end
+fclose(fid);
+textResult = exportPcbRun(cfg);
+verifyEqual(testCase, textResult.data.pcb01.signal_V, (1:20)');
+verifyEqual(testCase, textResult.data.trigger.signal_V, (9:28)');
+verifyEqual(testCase, textResult.data.driver.samplingRate_Hz, 2e6, 'RelTol', 1e-10);
+verifyTrue(testCase, isnan(textResult.data.pcb01.calibration.constant_Pa_per_V));
+cfg.output.file = string(fullfile(folder, 'mismatch.mat'));
+cfg.channels.driverSamplingRate_Hz = 250e3;
+verifyError(testCase, @() exportPcbRun(cfg), 'loadPcbData:SamplingRateMismatch');
 cfg.calibration.driver.offsetToAbsolutePa = NaN;
 verifyError(testCase, @() exportPcbRun(cfg), 'exportPcbRun:CalibrationRequired');
 end

@@ -47,15 +47,15 @@ requireFields(cfg.output, ["rootFolder", "convertedDataFolder", ...
     "saveRawPcbDataInResults"], "cfg.output");
 
 source = string(cfg.input.source);
-if ~isscalar(source) || ~ismember(source, ["pnrf", "mat"])
+if ~isscalar(source) || ~ismember(source, ["pnrf", "mat", "txt"])
     error('validatePcbConfig:InvalidInputSource', ...
-        'cfg.input.source must be "pnrf" or "mat".');
+        'cfg.input.source must be "pnrf", "mat", or "txt".');
 end
 
-if source == "mat"
+if ismember(source, ["mat", "txt"])
     if ~isfile(cfg.input.file)
         error('validatePcbConfig:InputFileNotFound', ...
-            'MAT input file not found: %s', cfg.input.file);
+            'Input file not found: %s', cfg.input.file);
     end
 else
     if ~isfolder(cfg.input.rawFolder)
@@ -145,7 +145,10 @@ if ~isscalar(failureMode) || ...
         '"useFullRecord" or "error".']);
 end
 
-if ~ismember(string(cfg.timing.pcbAnalysisChannel), dataChannels)
+needsTiming = cfg.run.quasiSteadyTracePlots || cfg.run.steadySpectrogram || ...
+    (string(cfg.analysis.interval) == "quasiSteady" && ...
+    (cfg.run.windowedPsd || cfg.run.windowedPsdPreview || cfg.run.secondModeAnalysis));
+if needsTiming && ~ismember(string(cfg.timing.pcbAnalysisChannel), dataChannels)
     error('validatePcbConfig:InvalidTimingChannel', ...
         'cfg.timing.pcbAnalysisChannel must be in cfg.channels.data.');
 end
