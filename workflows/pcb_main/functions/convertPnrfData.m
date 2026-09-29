@@ -105,16 +105,25 @@ for recorderIndex = 1:maxRecorders
         interfaceData = channel.DataSource(3);
         sweeps = interfaceData.Sweeps;
         segments = interfaceData.Data(sweeps.StartTime, sweeps.EndTime);
-        segment = segments.Item(1);
-        numberOfSamples = segment.NumberOfSamples;
-        waveformData = segment.Waveform(5, 1, numberOfSamples, 1)';
-        if ~any(waveformData)
+        % Preserve every segment, its timestamps, and valid all-zero signals.
+        timeParts = cell(segments.Count, 1);
+        signalParts = cell(segments.Count, 1);
+        for segmentIndex = 1:segments.Count
+            segment = segments.Item(segmentIndex);
+            numberOfSamples = segment.NumberOfSamples;
+            if numberOfSamples == 0
+                continue
+            end
+            values = segment.Waveform(5, 1, numberOfSamples, 1);
+            signalParts{segmentIndex} = values(:);
+            timeParts{segmentIndex} = segment.StartTime + ...
+                (0:numberOfSamples-1)' * segment.SampleInterval;
+        end
+        waveformData = vertcat(signalParts{:});
+        time = vertcat(timeParts{:});
+        if isempty(waveformData)
             continue
         end
-
-        endTime = segment.StartTime + ...
-            (numberOfSamples - 1) * segment.SampleInterval;
-        time = segment.StartTime:segment.SampleInterval:endTime;
         recordedSignalCount = recordedSignalCount + 1;
         pcbData.channels(recordedSignalCount) = recorderLabels(recorderIndex) + ...
             compose('%02d', channelIndex);
