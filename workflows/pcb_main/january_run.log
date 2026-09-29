@@ -1,0 +1,88 @@
+Running testComputeWindowedPcbPsd
+.
+Done testComputeWindowedPcbPsd
+__________
+
+Running testPcbPackaging
+PCB configuration saved to C:\Users\coled\AppData\Local\Temp\tp16b31661_8ad4_4897_8485_96a0c5313e00\synthetic_cfg.mat
+.PCB analysis workflow started
+
+--- Loading MAT data ---
+Loaded PCB data: C:\Users\coled\AppData\Local\Temp\tp57824ba2_77bb_494d_8bac_48ca98e2b1e6\synthetic_pcb.mat
+
+--- Extracting configured channels ---
+
+--- Computing windowed PCB PSDs ---
+Computed 3 PSD windows for 3 channels
+
+--- Detecting second-mode peaks ---
+
+Second-mode detection summary
+----------------------------------------------------
+C02
+  Detected: 3 of 3 windows
+  Median frequency: 1.99 kHz
+  Median prominence: 100.32 dB
+  Median width: 0.29 kHz
+  Median fit R-squared: 0.418
+D01
+  Detected: 3 of 3 windows
+  Median frequency: 3.00 kHz
+  Median prominence: 107.81 dB
+  Median width: 0.29 kHz
+  Median fit R-squared: 0.419
+----------------------------------------------------
+
+PCB analysis workflow completed
+.PCB analysis workflow started
+
+--- Loading MAT data ---
+Loaded PCB data: C:\Users\coled\AppData\Local\Temp\tp04f5709e_6959_4a27_8e5d_8b86506ee880\synthetic_pcb.mat
+
+--- Extracting configured channels ---
+
+PCB analysis workflow completed
+.PCB analysis workflow started
+
+--- Loading MAT data ---
+Loaded PCB data: C:\Users\coled\AppData\Local\Temp\tpcf82ac47_7f44_4471_9975_8929b965f211\synthetic_pcb.mat
+
+--- Extracting configured channels ---
+PCB analysis results saved to C:\Users\coled\AppData\Local\Temp\tpcf82ac47_7f44_4471_9975_8929b965f211\results.mat
+
+PCB analysis workflow completed
+.
+Done testPcbPackaging
+__________
+
+Running testPcbText
+PCB analysis workflow started
+
+--- Loading TXT data ---
+Loaded PCB data: C:\Users\coled\AppData\Local\Temp\tp4ba50558_2adb_45c2_adf2_edf32f2b8bb2.txt
+
+--- Extracting configured channels ---
+
+PCB analysis workflow completed
+.
+Done testPcbText
+__________
+
+Loaded PCB data: C:\Users\coled\Notre Dame\heatedCone_F26\AFOSR_Heated_Cone_Jan2026\PCB_Data\Iso_90psi\Iso_90psi_001.txt
+CHANNEL AUDIT: 4400015 samples, 2000000 Hz
+Channel min max zeroFraction stdBefore stdDuring ratio
+A01 0 1.82672 3.18181e-06 0.0046782381 0.039801326 8.508
+B01 -0.563054 8.759 3.18181e-06 0.0087707266 0.0068704459 0.7833
+C01 -0.0547299 0.0546496 0 0.00031749957 0.0034642112 10.91
+C02 -0.00911528 0.0158387 0 6.85116e-05 0.00011598242 1.693
+C03 -0.0553274 0.0552872 0 0.0015439513 0.0041061716 2.66
+C05 -0.0541903 0.0542182 0 0.001229238 0.001264363 1.029
+C06 -0.00098602 0.00094167 0 0.00016384347 0.00016350146 0.9979
+C07 -0.000707435 0.000799489 0 0.00016459149 0.00016435726 0.9986
+C08 -0.000911276 0.000937798 0 0.00016539212 0.00016534129 0.9997
+D01 -0.0554869 0.0554737 0 0.00025850449 0.00066329066 2.566
+D02 -0.0554095 0.0554084 0 0.0001300032 0.0007690165 5.915
+D05 -0.241649 0.464797 0 0.00056065339 0.0012487585 2.227
+D06 -0.127575 0.174051 0 0.0054296322 0.0062580046 1.153
+D07 -0.105395 0.172058 0 0.0054510606 0.0057598223 1.057
+D08 -0.209054 0.265576 0 0.0053392148 0.0069942871 1.31

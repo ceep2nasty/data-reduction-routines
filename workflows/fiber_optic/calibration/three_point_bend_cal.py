@@ -11,7 +11,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "subroutines"))
 from load_fos_case import read_fos_tsv
 
 
-DATA_DIR = Path(r"C:\Users\coled_agkeohi\Notre Dame\FTSI F26\calibration_tests_25SEP26")
+DATA_DIR = Path(r"C:\Users\coled\Notre Dame\FTSI F26\bend_tests\25SEP26_tests")
+SAVE_DIR = Path(r"C:\Users\coled\Notre Dame\FTSI F26\bend_tests\25SEP26_tests\output_figs")
 DEFLECTION_FILE = DATA_DIR / "deflection_test_2_pr100.csv"
 FOS_FILE = DATA_DIR / (
     "BendTest_Deflectometer_PR100_5Load5Unload_1mm_Test2_"
@@ -19,7 +20,7 @@ FOS_FILE = DATA_DIR / (
 )
 SPAN_MM = 127.0
 DELRIN_THICKNESS_MM = 0.254
-FIBER_DIAMETER_MM = 0.225
+FIBER_DIAMETER_MM = 0.155
 HOLD_LEVELS_MM = (1, 2, 3, 4, 5, 4, 3, 2, 1, 0)
 
 
@@ -217,7 +218,8 @@ def main():
     parser.add_argument("--deflection-file", type=Path, default=DEFLECTION_FILE)
     parser.add_argument("--fos-file", type=Path, default=FOS_FILE)
     parser.add_argument("--boundary-factor", type=float, default=12.0)
-    parser.add_argument("--save-dir", type=Path)
+    parser.add_argument("--save-dir", type=Path, default=SAVE_DIR,
+                        help=f"Figure output folder (default: {SAVE_DIR})")
     parser.add_argument("--no-plot", action="store_true")
     args = parser.parse_args()
 
