@@ -9,6 +9,10 @@ addpath(fullfile(root, 'functions'));
 script = fileread(fullfile(root, 'export_pcb_run.m'));
 sections = split(string(script), '%% EXECUTION');
 eval(char(sections(1)));
+% Keep this seven-channel January fixture independent of script defaults.
+cfg.channels.pcb = ["D01", "D02", "C01", "D05", "D08", "D07", "D06"];
+cfg.channels.positionIndex = 1:7;
+cfg.channels.sensorNumber = 2:8;
 folder = tempname;
 mkdir(folder);
 cleanup = onCleanup(@() rmdir(folder, 's')); %#ok<NASGU>
