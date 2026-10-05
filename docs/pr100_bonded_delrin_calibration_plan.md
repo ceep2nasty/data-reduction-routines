@@ -9,7 +9,7 @@ one-dimensional shape reconstruction and quantify its uncertainty and
 repeatability.
 
 The current reconstruction uses a nominal value of `-6.67e-6 strain/GHz` in
-`workflows/fiber_optic/subroutines/compute_1D_shape.py`. The calibration should
+`workflows/fiber_optic/subroutines/1D/sine_basis/compute_1D_shape.py`. The calibration should
 not replace that default until the result passes the validation checks below.
 
 ## Required inputs

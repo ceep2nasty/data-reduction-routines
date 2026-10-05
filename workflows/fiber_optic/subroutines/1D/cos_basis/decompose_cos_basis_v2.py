@@ -4,11 +4,19 @@ Assumes equal sensor sensitivity and symmetric offsets from the neutral surface.
 Outputs remain GHz; no optical-shift-to-strain calibration is applied.
 """
 
+import sys
+from pathlib import Path
+
+# Shared readers remain in the parent subroutines directory.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 import argparse
 import json
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+from cos_plot_labels import format_figure
 import numpy as np
 
 from process_cos_basis_v2 import DATA_DIR, ROI_FILE, L_active, load_data, find_centers
@@ -119,6 +127,8 @@ def main():
     outputs = decompose(data)
     save_outputs(outputs, args.output_dir)
     plot_outputs(outputs)
+    for number in plt.get_fignums():
+        format_figure(plt.figure(number))
     plt.show()
     return outputs
 

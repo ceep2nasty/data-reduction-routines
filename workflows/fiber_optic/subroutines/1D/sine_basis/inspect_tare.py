@@ -1,3 +1,10 @@
+import sys
+from pathlib import Path
+
+# Shared readers remain in the parent subroutines directory.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 from pathlib import Path
 
 import matplotlib.pyplot as plt

@@ -4,11 +4,19 @@ Coefficients multiply the known 1 mm displacement amplitudes of k1_a1/k2_a1.
 Displacement is evaluated on the specimen coordinate, not the measured fiber arc.
 """
 
+import sys
+from pathlib import Path
+
+# Shared readers remain in the parent subroutines directory.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 import argparse
 import json
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+from cos_plot_labels import format_figure, save_figure
 import numpy as np
 
 from process_cos_basis_v2 import DATA_DIR, ROI_FILE, L_active, load_data, find_centers
@@ -18,8 +26,8 @@ OUTPUT_DIR = Path(__file__).with_name("cos_basis_v2_reconstruction")
 FIG_DIR = Path(r"C:\Users\coled\Notre Dame\FTSI F26\progress reports\10OCT2026\figs")
 
 
-def reconstruct(data, active_length=L_active):
-    """Fit both empirical modes without a baseline offset or phase adjustment."""
+def reconstruct(data, active_length=L_active, allow_offset=False):
+    """Fit both empirical modes with an optional optical baseline offset."""
     outputs = {}
     for case_id in ("k1_a2", "k1_a2_k2_a1"):
         outputs[case_id] = {}
@@ -42,10 +50,15 @@ def reconstruct(data, active_length=L_active):
                             & np.isfinite(y) & np.all(np.isfinite(design), axis=1))
                     if keep.sum() < 3:
                         raise ValueError("Not enough overlapping finite ROI samples")
-                    coefficients, _, rank, singular = np.linalg.lstsq(design[keep], y[keep], rcond=None)
-                    if rank < 2:
+                    fit_design = design[keep]
+                    if allow_offset:
+                        fit_design = np.column_stack((fit_design, np.ones(keep.sum())))
+                    fitted, _, rank, singular = np.linalg.lstsq(fit_design, y[keep], rcond=None)
+                    if rank < fit_design.shape[1]:
                         raise ValueError("Empirical bases are linearly dependent")
-                    prediction = design[keep] @ coefficients
+                    coefficients = fitted[:2]
+                    offset = float(fitted[2]) if allow_offset else 0.0
+                    prediction = fit_design @ fitted
                     residual = y[keep] - prediction
                     # Empirical calibration: both measured basis states have 1 mm amplitude.
                     amplitudes_mm = coefficients * np.array([1.0, 1.0])
@@ -60,6 +73,7 @@ def reconstruct(data, active_length=L_active):
                         "surface": target["surface"], "units": {"distance": "mm", "shift": "GHz"},
                         "basis_cases": ["k1_a1", "k2_a1"],
                         "coefficients": coefficients,
+                        "offset_allowed": allow_offset, "offset_ghz": offset,
                         "modal_amplitudes_mm": amplitudes_mm,
                         "specimen_coordinate_mm": shape_x,
                         "reconstructed_displacement_mm": displacement,
@@ -81,6 +95,9 @@ def reconstruct(data, active_length=L_active):
                     fig, axes = plt.subplots(3, 1, figsize=(10, 9), sharex=True, constrained_layout=True)
                     fig.suptitle(f"Empirical reconstruction: {case_id}, {condition}, pass {pid}, {target['surface']}")
                     fig._reconstruction_kind = "optical shift reconstruction"
+                    if allow_offset:
+                        fig._reconstruction_kind += " with offset"
+                        fig.suptitle(fig._suptitle.get_text() + " (With Offset)")
                     fig._output_name = f"{case_id}_{condition}_pass_{pid}_{target['surface']}_{direction}"
                     for j, basis_case in enumerate(result["basis_cases"]):
                         axes[0].plot(x[keep], design[keep, j] * coefficients[j],
@@ -102,6 +119,9 @@ def reconstruct(data, active_length=L_active):
                                                          constrained_layout=True)
                     shape_fig.suptitle(f"Displacement: {case_id}, {condition}, pass {pid}, {target['surface']}")
                     shape_fig._reconstruction_kind = "shape reconstruction"
+                    if allow_offset:
+                        shape_fig._reconstruction_kind += " with offset"
+                        shape_fig.suptitle(shape_fig._suptitle.get_text() + " (With Offset)")
                     shape_fig._output_name = fig._output_name
                     shape_axes[0].plot(shape_x, imposed_displacement, label="Known imposed shape")
                     shape_axes[0].plot(shape_x, displacement, "--", label="Reconstructed shape")
@@ -117,6 +137,82 @@ def reconstruct(data, active_length=L_active):
     return outputs
 
 
+def save_raw_spectra(data, fig_dir=FIG_DIR):
+    """Save full JSON-selected ROI averages with no center finding or cropping."""
+    folder = Path(fig_dir) / "raw spectra"
+    folder.mkdir(parents=True, exist_ok=True)
+    for case_id, conditions in data.items():
+        pass_ids = sorted({pid for entry in conditions.values() for pid in entry["passes"]})
+        fig, axes = plt.subplots(len(pass_ids), 2, squeeze=False,
+                                 figsize=(12, 3.5 * len(pass_ids)), constrained_layout=True)
+        fig.suptitle(f"Raw spectra: {case_id}")
+        for row, pid in enumerate(pass_ids):
+            for col, condition in enumerate(("unconstrained", "constrained")):
+                ax = axes[row, col]
+                passes = conditions.get(condition, {}).get("passes", {}).get(pid, {})
+                for p in passes.values():
+                    ax.plot(p["distance_mm"], p["mean_spectral_shift_ghz"], label=p["surface"])
+                ax.set_title(f"{condition}: pass {pid}")
+                ax.set_xlabel("Distance along selected ROI (mm)")
+                ax.set_ylabel("Mean optical shift (GHz)")
+                ax.grid(alpha=0.25)
+                if passes:
+                    ax.legend()
+        format_figure(fig, raw=True)
+        save_figure(fig, folder / f"{case_id}.png")
+        plt.close(fig)
+
+
+def reconstruct_with_offset(data, active_length=L_active):
+    """Fit a constant GHz offset; only modal amplitudes determine displacement."""
+    return reconstruct(data, active_length, allow_offset=True)
+
+
+def reconstruct_average(outputs):
+    """Average top/bottom fitted amplitudes equally, then evaluate displacement."""
+    for case_id, conditions in outputs.items():
+        for condition, passes in conditions.items():
+            surfaces = {}
+            for directions in passes.values():
+                for result in directions.values():
+                    if result["surface"] in surfaces:
+                        raise ValueError("Expected one fitted pass per surface")
+                    surfaces[result["surface"]] = result
+            if set(surfaces) != {"top", "bottom"}:
+                raise ValueError("Averaged shape requires top and bottom fits")
+            top, bottom = surfaces["top"], surfaces["bottom"]
+            amplitudes = (top["modal_amplitudes_mm"] + bottom["modal_amplitudes_mm"]) / 2
+            x = top["specimen_coordinate_mm"]
+            length = top["L_active_mm"]
+            basis = np.cos(2 * np.pi * (x[:, None] / length + 0.5) * np.array([1, 2]))
+            shape = basis @ amplitudes
+            imposed = top["imposed_displacement_mm"]
+            passes["average_shape"] = {
+                "modal_amplitudes_mm": amplitudes,
+                "top_modal_amplitudes_mm": top["modal_amplitudes_mm"],
+                "bottom_modal_amplitudes_mm": bottom["modal_amplitudes_mm"],
+                "specimen_coordinate_mm": x,
+                "reconstructed_displacement_mm": shape,
+                "imposed_displacement_mm": imposed,
+                "displacement_residual_mm": shape - imposed,
+            }
+            fig, axes = plt.subplots(2, 1, figsize=(10, 7), sharex=True, constrained_layout=True)
+            fig.suptitle(f"Average Shape Reconstruction: {case_id}, {condition}")
+            fig._reconstruction_kind = "averaged shape reconstruction"
+            fig._output_name = f"{case_id}_{condition}_average_shape"
+            axes[0].plot(x, imposed, label="Known Imposed Shape")
+            axes[0].plot(x, shape, "--", label="Average-Amplitude Reconstruction")
+            axes[0].set_title(f"Mean Amplitudes: A1={amplitudes[0]:.3f}, A2={amplitudes[1]:.3f} mm")
+            axes[0].set_ylabel("Displacement (mm)")
+            axes[0].legend()
+            axes[1].plot(x, shape - imposed)
+            axes[1].axhline(0, color="0.5", linewidth=0.7)
+            axes[1].set_ylabel("Shape Residual (mm)")
+            axes[1].set_xlabel("Centered Specimen Coordinate (mm)")
+            for ax in axes:
+                ax.grid(alpha=0.25)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("data_dir", nargs="?", type=Path, default=DATA_DIR)
@@ -126,11 +222,19 @@ def main():
     parser.add_argument("--L-active", type=float, default=L_active, help="Centered ROI length in mm")
     args = parser.parse_args()
     data = load_data(args.data_dir, args.roi_file)
+    save_raw_spectra(data, args.fig_dir)
     find_centers(data, args.L_active)
     outputs = reconstruct(data, args.L_active)
+    reconstruct_average(outputs)
+    offset_outputs = reconstruct_with_offset(data, args.L_active)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     for case_id, conditions in outputs.items():
         (args.output_dir / f"{case_id}.json").write_text(
+            json.dumps(json_ready(conditions), indent=2, allow_nan=False), encoding="utf-8")
+    offset_dir = args.output_dir / "with offset"
+    offset_dir.mkdir(parents=True, exist_ok=True)
+    for case_id, conditions in offset_outputs.items():
+        (offset_dir / f"{case_id}.json").write_text(
             json.dumps(json_ready(conditions), indent=2, allow_nan=False), encoding="utf-8")
     for number in plt.get_fignums():
         fig = plt.figure(number)
@@ -139,7 +243,8 @@ def main():
             continue
         folder = args.fig_dir / kind
         folder.mkdir(parents=True, exist_ok=True)
-        fig.savefig(folder / f"{fig._output_name}.png", dpi=300)
+        format_figure(fig)
+        save_figure(fig, folder / f"{fig._output_name}.png")
     plt.show()
     return outputs
 

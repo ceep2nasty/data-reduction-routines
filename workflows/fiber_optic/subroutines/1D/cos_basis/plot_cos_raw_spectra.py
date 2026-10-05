@@ -1,5 +1,12 @@
 """Plot time-averaged Luna spectral shifts for static COS tests."""
 
+import sys
+from pathlib import Path
+
+# Shared readers remain in the parent subroutines directory.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 import argparse
 import csv
 import re

@@ -6,6 +6,13 @@ neutral line is omitted. Luna reference-state positions require a separate
 material-coordinate registration before direct comparison with this arc axis.
 """
 
+import sys
+from pathlib import Path
+
+# Shared readers remain in the parent subroutines directory.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 import numpy as np
 import matplotlib.pyplot as plt
 

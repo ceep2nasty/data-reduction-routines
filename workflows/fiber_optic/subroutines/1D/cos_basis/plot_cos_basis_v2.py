@@ -1,11 +1,19 @@
 """Display time-averaged COS basis V2 spectral shifts and select pass ROIs."""
 
+import sys
+from pathlib import Path
+
+# Shared readers remain in the parent subroutines directory.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 import argparse
 import json
 from pathlib import Path
 import re
 
 import matplotlib.pyplot as plt
+from cos_plot_labels import format_figure
 from matplotlib.widgets import SpanSelector
 import numpy as np
 
@@ -208,11 +216,15 @@ def main():
     else:
         print("Drag to select passes, then close all selection figures to label and save.")
         plot_spectra(spectra)
+        for number in plt.get_fignums():
+            format_figure(plt.figure(number))
         plt.show()
         label_rois(spectra)
         save_rois(spectra, args.roi_file)
         print(f"Saved selections to {args.roi_file}")
     plot_rois(spectra)
+    for number in plt.get_fignums():
+        format_figure(plt.figure(number))
     plt.show()
     return spectra
 

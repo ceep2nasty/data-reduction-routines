@@ -1,3 +1,10 @@
+import sys
+from pathlib import Path
+
+# Shared readers remain in the parent subroutines directory.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 ## Script to process 1D imposed sine-basis deformation on OBR data by applying Moore-Penrose pseudoinverse
 
 from pathlib import Path

@@ -1,9 +1,16 @@
 """Compute one baseline-relative, time-averaged fiber shape without plotting."""
 
+import sys
+from pathlib import Path
+
+# Shared readers remain in the parent subroutines directory.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 import numpy as np
 
 if __package__:
-    from .load_fos_case import read_fos_tsv
+    from load_fos_case import read_fos_tsv
 else:
     from load_fos_case import read_fos_tsv
 

@@ -7,6 +7,13 @@ Processing spatial fields use mm; original TSV/JSON headers retain source units.
 Case components retain the filename's k/a values; physical units are not assumed.
 """
 
+import sys
+from pathlib import Path
+
+# Shared readers remain in the parent subroutines directory.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 import argparse
 import json
 from pathlib import Path
@@ -14,6 +21,7 @@ import re
 
 import numpy as np
 import matplotlib.pyplot as plt
+from cos_plot_labels import format_figure, save_figure
 
 plt.rcParams.update({
     "font.family": "Times New Roman",
@@ -181,12 +189,12 @@ def check_linearity(data, active_length=L_active):
                 results.setdefault(condition, {}).setdefault(pid, {})[direction] = {
                     "centered_distance_mm": x2[keep], "residual_ghz": residual, "rms_ghz": rms}
                 fig, axes = plt.subplots(3, 1, figsize=(9, 8), sharex=True, constrained_layout=True)
-                fig.suptitle(f"Amplitude linearity: {condition}, pass {pid}, {small['surface']}")
+                fig.suptitle(f"Amplitude linearity: {condition}, pass {pid}")
                 fig._output_direction = direction
                 axes[0].plot(x1, y1, label="k1_a1")
                 axes[1].plot(x2, y2, label="k1_a2")
-                axes[1].plot(x1, 2*y1, "--", label="2 ? k1_a1")
-                axes[2].plot(x2[keep], residual, label="2 ? k1_a1 ? k1_a2")
+                axes[1].plot(x1, 2*y1, "--", label="2 * k1_a1")
+                axes[2].plot(x2[keep], residual, label="2 * k1_a1 - k1_a2")
                 axes[2].axhline(0, color="0.5", linewidth=0.7)
                 axes[2].set_title(f"Active-window residual RMS: {rms:.3f} GHz")
                 for ax in axes:
@@ -231,7 +239,7 @@ def check_superposition(data, active_length=L_active, first_case="k1_a2", first_
                     "summed_shift_ghz": summed[keep], "rms_ghz": rms,
                 }
                 fig, axes = plt.subplots(3, 1, figsize=(9, 8), sharex=True, constrained_layout=True)
-                fig.suptitle(f"{title}: {condition}, pass {pid}, {first['surface']}")
+                fig.suptitle(f"{title}: {condition}, pass {pid}")
                 fig._output_direction = direction
                 axes[0].plot(x1, y1, label=first_label)
                 axes[0].plot(x2, y2, label="k2_a1")
@@ -275,7 +283,8 @@ def main():
         fig = plt.figure(number)
         name = re.sub(r"[^a-z0-9]+", "_", fig._suptitle.get_text().lower()).strip("_")
         name += f"_{fig._output_direction}"
-        fig.savefig(args.output_dir / f"{name}.png", dpi=300)
+        format_figure(fig)
+        save_figure(fig, args.output_dir / f"{name}.png")
     plt.show()
     return data
 
