@@ -1,6 +1,29 @@
 # data-reduction-routines
 MATLAB data-reduction and analysis routines for wind tunnel campaigns.
 
+## Python setup
+
+Python workflows require Python 3.11 or newer. Direct dependencies are declared
+in `pyproject.toml`: NumPy for numerical calculations, Matplotlib for plotting,
+and pandas for tabular analysis and CSV exports. `uv.lock` records resolved
+versions, including transitive dependencies.
+
+From the repository root, install the locked environment with:
+
+```powershell
+uv sync --locked
+```
+
+Select `.venv\Scripts\python.exe` as your editor's Python interpreter, or run
+a workflow through `uv run`, for example:
+
+```powershell
+uv run workflows/fiber_optic/subroutines/1D/nonlinearity_estimation/nonlinearity_sweep.py
+```
+
+To add a Python dependency, use `uv add <package>` and commit both
+`pyproject.toml` and `uv.lock`.
+
 ## Data
 
 Raw experimental measurements are intentionally excluded from this repository. They should be stored and imported locally to keep GitHub file weight low.
