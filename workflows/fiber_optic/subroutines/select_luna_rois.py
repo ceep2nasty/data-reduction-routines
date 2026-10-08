@@ -146,7 +146,7 @@ def plot_saved_rois(saved, samples):
     for ax, (name, positions), sample in zip(axes[:, 0], saved["position_m"].items(), samples):
         ax.plot(positions, np.asarray(saved["spectral_shift_ghz"][name], dtype=float)[sample])
         ax.set(xlabel="Fiber position (m)", ylabel="Spectral shift (GHz)",
-               title=f"{name}: {positions[0]:g}â€“{positions[-1]:g} m | sample {sample} | {saved['time_s'][sample]:g} s")
+               title=f"{name}: {positions[0]:g} to {positions[-1]:g} m | sample {sample} | {saved['time_s'][sample]:g} s")
         ax.grid(alpha=0.25)
     fig.suptitle(saved["test_name"])
     return fig

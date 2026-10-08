@@ -2,7 +2,7 @@
 
 Call center_rois() with data or a JSON path from select_luna_rois.py. Each
 pass is averaged independently, ignoring missing readings. Save only the active
-window in the same six-field format, retaining original fiber positions in m.
+window in a six-field format with position_mm from 0 to active length in mm.
 The temporal average is used only to find the center, not as the saved signal.
 """
 
@@ -97,11 +97,13 @@ def trim_to_active_length(data, active_length_m, smoothing_points=SMOOTHING_POIN
     Each pass is processed separately so derivatives never cross ROI gaps.
     Bounds are center +/- half the active length; only measured positions
     inside those inclusive bounds are retained, without interpolation.
+    Output position_mm uses the active window's left boundary as zero.
+    Input positions and active_length_m remain in meters.
     """
     if not data["position_m"]:
         raise ValueError("Input has no selected ROIs")
     output = {key: data[key] for key in ("gage_pitch_mm", "test_name", "sampling_rate_hz", "time_s")}
-    output.update(position_m={}, spectral_shift_ghz={})
+    output.update(position_mm={}, spectral_shift_ghz={})
     centers = {}
     for name, positions in data["position_m"].items():
         x = np.asarray(positions, dtype=float)
@@ -118,27 +120,27 @@ def trim_to_active_length(data, active_length_m, smoothing_points=SMOOTHING_POIN
         except ValueError as exc:
             raise ValueError(f"{name}: {exc}") from exc
         indices = result["indices"]
-        output["position_m"][name] = x[indices]
+        output["position_mm"][name] = (x[indices] - result["bounds_m"][0]) * 1000
         output["spectral_shift_ghz"][name] = shifts[:, indices]
         centers[name] = result
     return output, centers
 
 
 def plot_centered_spectra(data, centers):
-    """Show trimmed mean profiles in center-relative coordinates (meters)."""
+    """Show trimmed mean profiles in active-window coordinates (millimeters)."""
     fig, axes = plt.subplots(len(centers), 1, squeeze=False,
                              figsize=(9, 3 * len(centers)), constrained_layout=True)
     for ax, (name, result) in zip(axes[:, 0], centers.items()):
-        x = np.asarray(data["position_m"][name]) - result["center_m"]
+        x = np.asarray(data["position_mm"][name])
         shifts = np.asarray(data["spectral_shift_ghz"][name], dtype=float)
         count = np.sum(np.isfinite(shifts), axis=0)
         mean = np.divide(np.nansum(shifts, axis=0), count,
                          out=np.full(len(x), np.nan), where=count > 0)
         ax.plot(x, mean)
-        ax.axvline(0, color="0.5", linestyle=":", linewidth=1)
-        half_length = result["active_length_m"] / 2
-        ax.set(xlabel="Position relative to center (m)",
-               ylabel="Mean spectral shift (GHz)", xlim=(-half_length, half_length),
+        active_length_mm = result["active_length_m"] * 1000
+        ax.axvline(active_length_mm / 2, color="0.5", linestyle=":", linewidth=1)
+        ax.set(xlabel="Position along active length (mm)",
+               ylabel="Mean spectral shift (GHz)", xlim=(0, active_length_mm),
                title=f"{name} | fiber center = {result['center_m']:.6g} m")
         ax.grid(alpha=0.25)
     fig.suptitle(data["test_name"])
