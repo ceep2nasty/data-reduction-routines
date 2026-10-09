@@ -28,7 +28,7 @@ INPUT_FILE = Path(r"Z:\Cole\FTSI\Luna_Data\NOISE_CHARACTERIZATION\1mm\0-65\1MM_B
 OUTPUT_DIR = Path(r"Z:\Cole\FTSI\Luna_Data\NOISE_CHARACTERIZATION\outputs\1mm\bottom")
 SAVE_NAME = "1mm_bottom_0-65_rois"
 PASS_COUNT = 1
-SAVE_PLOTS = True  # True saves the analysis figures as PNGs in OUTPUT_DIR.
+SAVE_PLOTS = False  # True saves the analysis figures as PNGs in OUTPUT_DIR.
 METADATA = {"gage_pitch": 0.65}  # mm; test name and sampling rate come from TSV.
 ACTIVE_LENGTH_M = 0.050
 SMOOTHING_POINTS = 3
@@ -37,10 +37,11 @@ ROI_JSON = OUTPUT_DIR / f"{SAVE_NAME}.json"
 
 # Displacement comparison: 1 mm cosine amplitude gives 2 mm maximum deflection.
 IMPOSED_AMPLITUDE_MM = 1.0
-DISPLACEMENT_DIRECTION = -1  # -1: downward (0 to -2A); +1: upward (0 to +2A).
+IMPOSED_DIRECTION = -1  # Actual target: -1 downward; +1 upward.
+CALIBRATION_DIRECTION = 1  # Positive amplitude in the saved calibration: top +1, bottom -1.
 
 # calibration file settings
-basis_cal_path = Path(r"Z:\Cole\FTSI\Luna_Data\NOISE_CHARACTERIZATION\optical_basis_cal\1mm_bottom_mode1_0-65.npz")
+basis_cal_path = Path(r"Z:\Cole\FTSI\Luna_Data\NOISE_CHARACTERIZATION\optical_basis_cal\1mm_top_mode1_0-65.npz")
 
 
 
@@ -74,9 +75,9 @@ def prepare_noise_data(input_file, output_dir, save_name, pass_count,
     )
     return state, fig
 
-def load_noise_data():
-    """Load pass_1 with spectral shift shaped (time, position)."""
-    json_path = OUTPUT_DIR / f"{SAVE_NAME}_centered.json"
+def load_noise_data(json_path, pass_name="pass_1"):
+    """Load a centered ROI JSON; spectral shift has shape (time, position)."""
+    json_path = Path(json_path)
     with json_path.open("r", encoding="utf-8") as file:
         data = json.load(file)
     loaded = {}
@@ -84,12 +85,15 @@ def load_noise_data():
     loaded["test_name"] = data["test_name"]
     loaded["sampling_rate_hz"] = data["sampling_rate_hz"]
     loaded["time_s"] = np.asarray(data["time_s"], dtype=float)
-    loaded["position_mm"] = np.asarray(data["position_mm"]["pass_1"], dtype=float)
-    loaded["spectral_shift_ghz"] = np.asarray(data["spectral_shift_ghz"]["pass_1"], dtype=float)
+    loaded["position_mm"] = np.asarray(data["position_mm"][pass_name], dtype=float)
+    loaded["spectral_shift_ghz"] = np.asarray(data["spectral_shift_ghz"][pass_name], dtype=float)
 
+    expected_shape = (len(loaded["time_s"]), len(loaded["position_mm"]))
+    if loaded["spectral_shift_ghz"].shape != expected_shape:
+        raise ValueError(f"Expected spectral shift shape {expected_shape}")
     return loaded
 
-def process_noise_raw_spectra(data):
+def process_noise_raw_spectra(data, *, make_plots=True):
     """Calculate temporal spread at each position and plot the optical profile."""
     shift = np.asarray(data["spectral_shift_ghz"], dtype=float)
     position = np.asarray(data["position_mm"], dtype=float)
@@ -108,6 +112,9 @@ def process_noise_raw_spectra(data):
         "average_std": average_std,
         "average_noise_95_half_width": average_half_width,
     }
+
+    if not make_plots:
+        return stats
 
     fig, axes = plt.subplots(
         3, 1, sharex=True, figsize=(10, 10), constrained_layout=True
@@ -152,18 +159,17 @@ def process_noise_raw_spectra(data):
     )
     axes[2].grid(True)
 
-    if SAVE_PLOTS:
-        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-        fig.savefig(OUTPUT_DIR / f"{SAVE_NAME}_raw_spectra_noise.png", dpi=300)
-    plt.show()
+    stats["figure"] = fig
     return stats
 
-def process_fit_noise(data, optical_basis):
+def process_fit_noise(data, optical_basis, *, imposed_amplitude_mm,
+                      imposed_direction, calibration_direction,
+                      active_length_mm=None, make_plots=True):
     """Fit one cosine amplitude per frame, reconstruct shapes, and measure spread."""
     position_mm = data["position_mm"]
     shift_ghz = data["spectral_shift_ghz"]
     active_length = optical_basis["active_length_mm"]
-    if not np.isclose(active_length, ACTIVE_LENGTH_M * 1000):
+    if active_length_mm is not None and not np.isclose(active_length, active_length_mm):
         raise ValueError("Calibration and recording active lengths differ")
 
     # 1. Evaluate the unit displacement cosine at the recorded positions.
@@ -179,23 +185,34 @@ def process_fit_noise(data, optical_basis):
     fit = fit_amplitudes(basis_ghz_per_mm, shift_ghz, allow_offset=True)
     amplitudes_mm = fit["amplitudes_mm"]
     # 4. Set zero at the active-window endpoints and choose deflection direction.
-    displacement_basis = DISPLACEMENT_DIRECTION * (1.0 - shape_basis)
+    displacement_basis = calibration_direction * (1.0 - shape_basis)
     shape_mm = amplitudes_mm @ displacement_basis.T
-    imposed_shape_mm = IMPOSED_AMPLITUDE_MM * displacement_basis[:, 0]
+    imposed_shape_mm = imposed_direction * imposed_amplitude_mm * (1.0 - shape_basis[:, 0])
     # 5. Measure temporal variability down each position column.
     mean_shape_mm = np.nanmean(shape_mm, axis=0)
     shape_std_mm = np.nanstd(shape_mm, axis=0, ddof=1)
     amplitude_std_mm = np.nanstd(amplitudes_mm, axis=0, ddof=1)
     noise_half_width_mm = 1.96 * shape_std_mm
 
-    print(f"Amplitude standard deviation: {amplitude_std_mm[0]:.6g} mm")
+    stats = {
+        "fit": fit,
+        "mean_amplitude_mm": float(np.nanmean(amplitudes_mm[:, 0])),
+        "amplitude_std_mm": amplitude_std_mm,
+        "shape_mm": shape_mm,
+        "imposed_shape_mm": imposed_shape_mm,
+        "shape_std_mm": shape_std_mm,
+        "mean_shape_mm": mean_shape_mm,
+        "shape_noise_95_half_width_mm": noise_half_width_mm,
+    }
+    if not make_plots:
+        return stats
 
     fig, ax = plt.subplots(figsize=(10, 5), constrained_layout=True)
-    mean_amplitude_mm = float(np.mean(amplitudes_mm[:, 0]))
+    mean_amplitude_mm = stats["mean_amplitude_mm"]
     ax.plot(position_mm, mean_shape_mm,
             label=f"Mean reconstructed shape (fitted amplitude {mean_amplitude_mm:.4g} mm)")
     ax.plot(position_mm, imposed_shape_mm, "--", color="black",
-            label=f"Imposed shape (cosine amplitude {IMPOSED_AMPLITUDE_MM:g} mm)")
+            label=f"Imposed shape (cosine amplitude {imposed_amplitude_mm:g} mm)")
     ax.fill_between(
         position_mm, mean_shape_mm - noise_half_width_mm,
         mean_shape_mm + noise_half_width_mm, alpha=0.25,
@@ -212,19 +229,55 @@ def process_fit_noise(data, optical_basis):
     )
     ax.legend(loc="lower left")
     ax.grid(True)
-    if SAVE_PLOTS:
-        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-        fig.savefig(OUTPUT_DIR / f"{SAVE_NAME}_reconstructed_shape_noise.png", dpi=300)
-    plt.show()
-    return {
-        "fit": fit,
-        "amplitude_std_mm": amplitude_std_mm,
-        "shape_mm": shape_mm,
-        "imposed_shape_mm": imposed_shape_mm,
-        "shape_std_mm": shape_std_mm,
-        "mean_shape_mm": mean_shape_mm,
-        "shape_noise_95_half_width_mm": noise_half_width_mm,
+    stats["figure"] = fig
+    return stats
+
+
+def analyze_recording(centered_json, calibration_path, *, imposed_amplitude_mm,
+                      imposed_direction, calibration_direction, pass_name="pass_1",
+                      active_length_mm=None, make_plots=True, output_dir=None,
+                      save_name=None, show=False):
+    """Analyze one recording without selecting or recentering its ROI.
+
+    Directions are +1 upward or -1 downward. Calibration direction describes
+    the saved calibration; imposed direction describes this recording.
+    Amplitude is the cosine coefficient (half the maximum deflection).
+    Pass output_dir to save PNGs. show=False closes this call's figures after
+    saving, so batches do not accumulate windows. make_plots=False only computes
+    statistics. Returned data, raw_stats, and reconstruction arrays can be reused.
+    """
+    if imposed_direction not in (-1, 1) or calibration_direction not in (-1, 1):
+        raise ValueError("Directions must be +1 or -1")
+    if not make_plots and output_dir is not None:
+        raise ValueError("Saving plots requires make_plots=True")
+    data = load_noise_data(centered_json, pass_name)
+    calibration = load_calibrated_basis(calibration_path)
+    raw_stats = process_noise_raw_spectra(data, make_plots=make_plots)
+    reconstruction = process_fit_noise(
+        data, calibration, imposed_amplitude_mm=imposed_amplitude_mm,
+        imposed_direction=imposed_direction, calibration_direction=calibration_direction,
+        active_length_mm=active_length_mm, make_plots=make_plots,
+    )
+    figures = {
+        "raw_spectra_noise": raw_stats.pop("figure", None),
+        "reconstructed_shape_noise": reconstruction.pop("figure", None),
     }
+    if output_dir is not None:
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        name = save_name or Path(centered_json).stem
+        for suffix, figure in figures.items():
+            figure.savefig(output_dir / f"{name}_{suffix}.png", dpi=300)
+    print(f"{data['test_name']} ({pass_name}): "
+          f"mean amplitude = {reconstruction['mean_amplitude_mm']:.6g} mm, "
+          f"amplitude std = {reconstruction['amplitude_std_mm'][0]:.6g} mm")
+    if show:
+        plt.show()
+    else:
+        for figure in figures.values():
+            if figure is not None:
+                plt.close(figure)
+    return {"data": data, "raw_stats": raw_stats, **reconstruction}
 
 
 def main():
@@ -233,12 +286,19 @@ def main():
         ACTIVE_LENGTH_M, SMOOTHING_POINTS, METADATA,
         existing_roi_json=ROI_JSON if USE_EXISTING_ROIS else None,
     )
-    plt.show()
-    data = load_noise_data()
-    raw_stats = process_noise_raw_spectra(data)
-    state["raw_stats"] = raw_stats
-    optical_basis = load_calibrated_basis(basis_cal_path)
-    state.update(process_fit_noise(data, optical_basis))
+    if not USE_EXISTING_ROIS:
+        plt.show()  # Interactive selection must finish before analysis.
+        if not state:
+            return state
+    state.update(analyze_recording(
+        OUTPUT_DIR / f"{SAVE_NAME}_centered.json", basis_cal_path,
+        imposed_amplitude_mm=IMPOSED_AMPLITUDE_MM,
+        imposed_direction=IMPOSED_DIRECTION,
+        calibration_direction=CALIBRATION_DIRECTION,
+        active_length_mm=ACTIVE_LENGTH_M * 1000,
+        output_dir=OUTPUT_DIR if SAVE_PLOTS else None,
+        save_name=SAVE_NAME, show=True,
+    ))
     return state
 
 if __name__ == "__main__":

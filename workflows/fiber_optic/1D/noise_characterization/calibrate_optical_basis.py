@@ -14,20 +14,26 @@ from empirical_basis_inversion import (
     save_calibrated_basis, stack_calibrated_basis,
 )
 
+from restore_tare import restore_roi_tare
 from select_luna_rois import select_luna_rois
 center_rois = importlib.import_module("1D_find_center").center_rois
 
 # ROI selection and centering settings.
-INPUT_FILE = Path(r"Z:\Cole\FTSI\Luna_Data\NOISE_CHARACTERIZATION\1mm\0-65\1MM_BOTTOM_0-65_2026-10-07_01-38-25_ch1_gages.tsv")
-ROI_OUTPUT_DIR = Path(r"Z:\Cole\FTSI\Luna_Data\NOISE_CHARACTERIZATION\outputs\1mm\bottom")
-SAVE_NAME = "1mm_bottom_0-65_rois"
+INPUT_FILE = Path(r"Z:\Cole\FTSI\Luna_Data\NOISE_CHARACTERIZATION\1mm\0-65\1MM_TOP_0-65_2026-10-07_01-47-00_ch1_full.tsv")
+ROI_OUTPUT_DIR = Path(r"Z:\Cole\FTSI\Luna_Data\NOISE_CHARACTERIZATION\outputs\1mm\top")
+SAVE_NAME = "1mm_top_0-65_rois"
 PASS_COUNT = 1
 SMOOTHING_POINTS = 3
-USE_EXISTING_ROIS = False  # False opens the interactive selector; Save continues calibration.
+USE_EXISTING_ROIS = True  # False opens the interactive selector; Save continues calibration.
 ROI_JSON = ROI_OUTPUT_DIR / f"{SAVE_NAME}.json"
 
+# Exported readings already have the tare subtracted.
+ADD_TARE_BACK = False
+TARE_SOURCE_FILE = Path(r"Z:\Cole\FTSI\Luna_Data\NOISE_CHARACTERIZATION\1mm\0-65\1MM_BOTTOM_0-65_2026-10-07_01-38-25_ch1_full.tsv")  # Shared-reference assumption: top has no numeric tare row.
+TARE_SUFFIX = "_no_tare" if ADD_TARE_BACK else ""
+
 # Edit these settings for each pure-mode calibration case.
-JSON_PATH = ROI_OUTPUT_DIR / f"{SAVE_NAME}_centered.json"
+JSON_PATH = ROI_OUTPUT_DIR / f"{SAVE_NAME}_centered{TARE_SUFFIX}.json"
 PASS_NAME = "pass_1"
 IMPOSED_AMPLITUDE_MM = 1.0
 ACTIVE_LENGTH_MM = 50.0
@@ -39,7 +45,7 @@ TIME_START_S = None  # None uses the whole recording; choose a steady interval i
 TIME_END_S = None
 SAVE_BASIS = True  # Enable after inspecting the fit; existing files are protected.
 OUTPUT_DIR = Path(r"Z:\Cole\FTSI\Luna_Data\NOISE_CHARACTERIZATION\optical_basis_cal")
-BASIS_NAME = "1mm_bottom_mode1_0-65"
+BASIS_NAME = "top_mode1"
 # Empty: inspect the calibration recording itself (consistency check).
 # Set paths to saved mode bases to fit an independent target, stacked in list order.
 FIT_BASIS_PATHS = []
@@ -53,9 +59,11 @@ def prepare_calibration_data():
     """Save/center selected ROIs; stop if the selector closes without saving."""
     saved = False
 
-    def center_selection(path):
+    def center_selection(source):
         nonlocal saved
-        center_rois(path, JSON_PATH, ACTIVE_LENGTH_MM / 1000, SMOOTHING_POINTS)
+        if ADD_TARE_BACK:
+            source = restore_roi_tare(source, TARE_SOURCE_FILE)
+        center_rois(source, JSON_PATH, ACTIVE_LENGTH_MM / 1000, SMOOTHING_POINTS)
         saved = True
 
     if USE_EXISTING_ROIS:
@@ -78,6 +86,7 @@ def main():
         mode_number=MODE_NUMBER, origin_mm=ORIGIN_MM, allow_offset=ALLOW_OFFSET,
     )
     print(f"Source: {JSON_PATH}")
+    print(f"Tare added back: {ADD_TARE_BACK}")
     print(f"Case: {data.get('test_name', JSON_PATH.stem)}; pass: {PASS_NAME}")
     print(f"Selected samples: {len(time)} ({time.min():.4g} to {time.max():.4g} s)")
     print(f"Mode: {MODE_NUMBER}; imposed amplitude: {IMPOSED_AMPLITUDE_MM:g} mm")
@@ -85,8 +94,9 @@ def main():
     print(f"Gain: {calibration['optical_amplitude_ghz'] / IMPOSED_AMPLITUDE_MM:.6g} GHz/mm")
     print(f"Baseline: {calibration['offset_ghz']:.6g} GHz")
     print(f"Residual RMS: {calibration['rms_ghz']:.6g} GHz")
+    calibration["tare_added_back"] = ADD_TARE_BACK
     if SAVE_BASIS:
-        saved = save_calibrated_basis(calibration, OUTPUT_DIR, BASIS_NAME)
+        saved = save_calibrated_basis(calibration, OUTPUT_DIR, BASIS_NAME + TARE_SUFFIX)
         print(f"Saved basis: {saved}")
 
     fig, axes = plt.subplots(3, 1, sharex=True, figsize=(10, 9), constrained_layout=True)
