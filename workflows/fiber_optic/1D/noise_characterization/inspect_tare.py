@@ -9,11 +9,11 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "subroutines"))
 from restore_tare import read_tare_profile
 
-TARE_SOURCE_FILE = Path(r"Z:\Cole\FTSI\Luna_Data\NOISE_CHARACTERIZATION\1mm\0-65\1MM_BOTTOM_0-65_2026-10-07_01-38-25_ch1_full.tsv")
+TARE_SOURCE_FILE = Path("/mnt/lab_storage/Cole/FTSI/Luna_Data/NOISE_CHARACTERIZATION/collected data/1mm/0-65/1MM_BOTTOM_0-65_2026-10-07_01-38-25_ch1_full.tsv")
 POSITION_RANGE_M = (1.69, 1.80)  # Example: (1.69, 1.80) to inspect the coupon region.
 
 SAVE_PLOT = False
-OUTPUT_DIR = Path(r"Z:\Cole\FTSI\Luna_Data\NOISE_CHARACTERIZATION\outputs\1mm\bottom")
+OUTPUT_DIR = Path("/mnt/lab_storage/Cole/FTSI/Luna_Data/NOISE_CHARACTERIZATION/outputs/1mm/0-65/bottom")
 PLOT_NAME = "1mm_bottom_tare.png"
 PLOT_TITLE = "Bottom case: exported 1MM TARE"
 

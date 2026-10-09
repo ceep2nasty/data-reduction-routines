@@ -91,11 +91,11 @@ def find_center(position_m, spectral_shift_ghz, roi_bounds_m, active_length_m,
     }
 
 
-def trim_to_active_length(data, active_length_m, smoothing_points=SMOOTHING_POINTS):
-    """Return cropped six-field data and center diagnostics, without mutation.
+def trim_to_active_length(data, active_length_m, smoothing_points=SMOOTHING_POINTS, *, padding_m=0.0):
+    """Return a centered, optionally padded profile and coordinate metadata.
 
     Each pass is processed separately so derivatives never cross ROI gaps.
-    Bounds are center +/- half the active length; only measured positions
+    Bounds include optional padding beyond center +/- half the active length; only measured positions
     inside those inclusive bounds are retained, without interpolation.
     Output position_mm uses the active window's left boundary as zero.
     Input positions and active_length_m remain in meters.
@@ -119,10 +119,20 @@ def trim_to_active_length(data, active_length_m, smoothing_points=SMOOTHING_POIN
             result = find_center(x, mean, [x[0], x[-1]], active_length_m, smoothing_points)
         except ValueError as exc:
             raise ValueError(f"{name}: {exc}") from exc
-        indices = result["indices"]
+        if padding_m < 0:
+            raise ValueError("Padding must be nonnegative")
+        retained_bounds = [result["bounds_m"][0] - padding_m, result["bounds_m"][1] + padding_m]
+        if retained_bounds[0] < x[0] or retained_bounds[1] > x[-1]:
+            raise ValueError(f"{name}: selected ROI does not cover the requested padding")
+        indices = np.flatnonzero((x >= retained_bounds[0]) & (x <= retained_bounds[1]))
+        result["retained_bounds_m"] = retained_bounds
+        result["padding_m"] = padding_m
+        result["retained_indices"] = indices.tolist()
         output["position_mm"][name] = (x[indices] - result["bounds_m"][0]) * 1000
         output["spectral_shift_ghz"][name] = shifts[:, indices]
         centers[name] = result
+    output["centers"] = centers
+    output["coordinate_convention"] = "Reference fiber distance from detected center plus active_length/2; not horizontal position"
     return output, centers
 
 
@@ -139,8 +149,8 @@ def plot_centered_spectra(data, centers):
         ax.plot(x, mean)
         active_length_mm = result["active_length_m"] * 1000
         ax.axvline(active_length_mm / 2, color="0.5", linestyle=":", linewidth=1)
-        ax.set(xlabel="Position along active length (mm)",
-               ylabel="Mean spectral shift (GHz)", xlim=(0, active_length_mm),
+        ax.set(xlabel="Centered reference position (mm)",
+               ylabel="Mean spectral shift (GHz)", xlim=(-result.get("padding_m", 0) * 1000, active_length_mm + result.get("padding_m", 0) * 1000),
                title=f"{name} | fiber center = {result['center_m']:.6g} m")
         ax.grid(alpha=0.25)
     fig.suptitle(data["test_name"])
@@ -148,15 +158,15 @@ def plot_centered_spectra(data, centers):
 
 
 def center_rois(data, output_path, active_length_m, smoothing_points=SMOOTHING_POINTS,
-                *, show=True):
-    """Center and save ROI data (dictionary or JSON path); return data and centers.
+                *, show=True, padding_m=0.0):
+    """Center and save ROI data, retaining padding_m beyond each active endpoint.
 
     With show=True, create the centered plot without blocking the caller.
     Call plt.show() in the experiment script to keep figures open.
     """
     if isinstance(data, (str, Path)):
         data = json.loads(Path(data).read_text(encoding="utf-8"))
-    trimmed, centers = trim_to_active_length(data, active_length_m, smoothing_points)
+    trimmed, centers = trim_to_active_length(data, active_length_m, smoothing_points, padding_m=padding_m)
     for name, result in centers.items():
         print(f"{name}: center = {result['center_m']:.6g} m, "
               f"bounds = {result['bounds_m']}")

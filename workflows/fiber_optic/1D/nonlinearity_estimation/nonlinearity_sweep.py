@@ -1,43 +1,83 @@
 """Sweep all four-mode cosine combinations for curvature and bending yield."""
 
-import argparse
+
+import csv
 from pathlib import Path
+from itertools import product
 
 import numpy as np
 import pandas as pd
 
-# 301 spring-temper stainless steel reference values. Young's modulus:
-# https://www.tokkin.com/search/stainless-steels/austenitic/301/
-# Supplier-listed yield (160 ksi; not a guaranteed minimum for this specimen):
-# https://www.oshcut.com/materialdetails/stainless-steel-shim-stock-301-spring-temper
-STEEL_301_SPRING_TEMPER_E_MPA = 193_000.0
-STEEL_301_SPRING_TEMPER_YIELD_MPA = 160_000 * 0.006894757293168  # psi to MPa
-SPECIMEN_THICKNESS_MM = 0.18
+spacing = 0.25 # spacing between amplitudes in mm
+max_amp = 5
+min_amp = 0.0
+n_amplitudes = int(np.floor((max_amp - min_amp) / spacing)) + 1
+AMPLITUDES_MM = min_amp + spacing * np.arange(n_amplitudes)
+MODE_CASES = [(1, 2)]  # Superposed modes 1 and 2
+ACTIVE_LENGTH_MM = 50
+THICKNESS_MM = 0.10
+YOUNGS_MODULUS_MPA = 193_000.0  # Configurable 301 spring-temper reference
+YIELD_STRENGTH_MPA = 1103.0  # Configurable supplier reference, MPa
+YIELD_SAFETY_FACTOR = 1.0
+MIN_NONLINEAR_DIFFERENCE = 0.05  # Fraction: 5%
+GAGE_PITCH = 0.65 # gage pitch parameter, mm
+N_POINTS = 2001
+OUTPUT_FILE = Path("/mnt/lab_storage/Cole/FTSI/nonlinearity_1D/nonlinearity sweep results.csv")
+
+
+def max_strain_grad(GAGE_PITCH):
+    match GAGE_PITCH:
+        case 0.65:
+            return 1480
+        case 1.30:
+            return 465
+        case 2.60:
+            return 67
+        case 5.20:
+            return 63
 
 
 def dw_dx(k, A, N=100, L = 50.):
     """Generate slope at N points for an integer number of modes, k for modal amplitude array, A"""
-    x = np.linspace(0.0,L, N) # N points x to reconstruct at
-    wave_numbers = np.arange(1, k + 1) * (2 * np.pi / L)
+    modes = np.atleast_1d(np.asarray(k, dtype=float))
+    amplitudes = np.atleast_1d(np.asarray(A, dtype=float))
 
-    # Assuming cosine basis, dw/dx analytically is -A(2pi*k/L)sin(2pi*k/L)
-    slope = np.zeros_like(x)
-    for amplitude, wave_number in zip(A, wave_numbers):
-        slope += -amplitude * wave_number * np.sin(wave_number * x)
-
+    x = np.linspace(0, L, N)
+    q = modes * 2 * np.pi / L
+    slope = np.sum(
+        -amplitudes[:, None] * q[:, None]
+        * np.sin(q[:, None] * x),
+        axis=0,
+    )
     return x, slope
+
 
 def d2w_dx2(k,A, N=100, L=50):
     """Generate second derivative at N points for an integer number of modes, k, 
     for modal amplitude array, A"""
-    x = np.linspace(0.0,L, N) # N points x to reconstruct at
-    wave_numbers = np.arange(1, k + 1) * (2 * np.pi / L)
+    modes = np.atleast_1d(np.asarray(k, dtype=float))
+    amplitudes = np.atleast_1d(np.asarray(A, dtype=float))
 
-    d2 = np.zeros_like(x)
-    for amplitude, wave_number in zip(A, wave_numbers):
-        d2 += -amplitude * (wave_number)**2 * np.cos(wave_number*x)
-
+    x = np.linspace(0, L, N)
+    q = modes * 2 * np.pi / L
+    d2 = np.sum(
+        -amplitudes[:, None] * q[:, None]**2
+        * np.cos(q[:, None] * x),
+        axis=0,
+    )
     return x, d2
+
+def exact_curvature(k, A, L=50, N=100):
+        x, second_derivative = d2w_dx2(k, A, N=N, L=L)
+        _, slope = dw_dx(k, A, N=N, L=L)
+        curvature = second_derivative / (1 + slope**2)**1.5
+
+        return x, curvature
+
+def eps(k, A, t, L=50, N=100):
+    x, curvature = exact_curvature(k, A, L, N)
+    strain = -t/2 * curvature
+    return x, strain
 
 # linear curvature is w''(x). Nonlinear is longer
 
@@ -47,86 +87,125 @@ def nl_curvature_diff(k, A, L=50, N=100):
     delta = (1 + slope**2)**(-1.5) - 1
     return x, delta
 
-def sweep_superposed_modes(amplitudes, modes, thickness_mm,
-                           youngs_modulus_mpa, yield_strength_mpa,
-                           L=50.0, N=2001):
-    """Evaluate every amplitude tuple for the supplied cosine modes.
 
-    For nonnegative amplitudes, all cosine curvatures align at x=0. Thus
-    peak absolute curvature is exactly sum(A_k * (2*pi*k/L)**2).
-    """
-    if L <= 0 or thickness_mm <= 0 or youngs_modulus_mpa <= 0 or yield_strength_mpa <= 0:
-        raise ValueError("L, thickness, Young's modulus, and yield strength must be positive")
-    modes = np.asarray(modes)
-    amplitudes = np.asarray(amplitudes)
-    if np.any(modes < 1) or np.any(modes != modes.astype(int)) or len(modes) != len(np.unique(modes)):
-        raise ValueError("Modes must be distinct positive integers")
-    if np.any(amplitudes < 0):
-        raise ValueError("This sweep expects nonnegative amplitudes")
+def main(amplitude_options, modes, thickness_mm, E, sigma, sf,
+         gage, active_length_mm=50, n_points=2001,
+         min_nonlinearity=0.05):
+    gradient_limit = max_strain_grad(gage)
+    if gradient_limit is None:
+        raise ValueError(f"Unsupported gage pitch: {gage}")
+    accepted = []
 
-    coefficients = np.stack(
-        np.meshgrid(*([amplitudes] * len(modes)), indexing="ij"), axis=-1
-    ).reshape(-1, len(modes))
-    wave_numbers = modes * (2 * np.pi / L)
-    peak_curvature = coefficients @ wave_numbers**2
-    peak_strain = thickness_mm / 2 * peak_curvature
-    stress = youngs_modulus_mpa * peak_strain
-    utilization = stress / yield_strength_mpa
-    viable = utilization < 1
-    viable_coefficients = coefficients[viable]
+    # Ensure nonlinearity difference is high enough to be observable
+    for amplitudes in product(amplitude_options, repeat=len(modes)):
+        # Linear surface strain from the combined shape.
+        x, second_derivative = d2w_dx2(
+            modes, amplitudes, N=n_points, L=active_length_mm
+        )
+        linear_strain = -thickness_mm / 2 * second_derivative
 
-    # Only viable cases need the sampled slope calculation. Work in batches
-    # so a finer grid does not require a large slope-by-position array.
-    x = np.linspace(0.0, L, N)
-    basis_slopes = -wave_numbers[:, None] * np.sin(np.outer(wave_numbers, x))
-    reduction = np.empty(len(viable_coefficients))
-    for start in range(0, len(viable_coefficients), 512):
-        batch = viable_coefficients[start:start + 512]
-        max_slope = np.max(np.abs(batch @ basis_slopes), axis=1)
-        reduction[start:start + 512] = 100 * (1 - (1 + max_slope**2)**(-1.5))
+        peak_linear_strain = np.max(np.abs(linear_strain))
+        if peak_linear_strain == 0:
+            continue
 
-    result = pd.DataFrame(
-        viable_coefficients,
-        columns=[f"A{int(mode)} (mm)" for mode in modes],
-    )
-    result["Peak curvature reduction (%)"] = reduction
-    result["Peak bending strain"] = peak_strain[viable]
-    result["Peak von Mises stress (MPa)"] = stress[viable]
-    result["Yield utilization"] = utilization[viable]
-    result["Below yield"] = True
-    return result
+        # Exact surface strain from that same combined shape.
+        _, exact_strain = eps(
+            modes, amplitudes, thickness_mm,
+            L=active_length_mm, N=n_points
+        )
 
+        max_difference = np.max(np.abs(exact_strain - linear_strain))
+        nonlinearity = max_difference / peak_linear_strain
+
+        # check against yield strength
+        max_stress = np.max(np.abs(exact_strain)) * E  # MPa, uniaxial bending
+
+        # check against strain gradient limit
+
+        strain_gradient = np.gradient(exact_strain, x, edge_order=2)
+        peak_gradient = np.max(np.abs(strain_gradient)) * 1e6
+        if peak_gradient <= gradient_limit:
+            dropout = False
+        else:
+            dropout = True
+
+        if nonlinearity < min_nonlinearity or (max_stress > sigma/sf) or dropout:
+            continue
+
+        accepted.append({
+            "amplitudes": amplitudes,
+            "max_nonlinearity": nonlinearity,
+            "max_strain_difference": max_difference,
+            "max_strain_gradient": peak_gradient,
+            "max_stress": max_stress
+        })
+
+    return accepted
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--thickness-mm", type=float,
-                        default=SPECIMEN_THICKNESS_MM,
-                        help="default: 0.18 mm")
-    parser.add_argument("--youngs-modulus-mpa", type=float,
-                        default=STEEL_301_SPRING_TEMPER_E_MPA,
-                        help="default: 193000 MPa for 301 spring temper")
-    parser.add_argument("--yield-strength-mpa", type=float,
-                        default=STEEL_301_SPRING_TEMPER_YIELD_MPA,
-                        help="default: about 1103 MPa supplier reference for 301 spring temper")
-    parser.add_argument("--output-dir", type=Path,
-                        default=Path(__file__).resolve().parents[5] / "outputs" / "nonlinearity_estimation")
-    args = parser.parse_args()
+    for mode_case in MODE_CASES:
+        MODES = np.asarray(mode_case)
+        mode_label = " and ".join(str(mode) for mode in MODES)
+        output_file = OUTPUT_FILE.with_name(
+            f"{OUTPUT_FILE.stem} modes {mode_label}{OUTPUT_FILE.suffix}"
+        )
+        results = main(
+            AMPLITUDES_MM, MODES, THICKNESS_MM,
+            YOUNGS_MODULUS_MPA, YIELD_STRENGTH_MPA, YIELD_SAFETY_FACTOR,
+            GAGE_PITCH, active_length_mm=ACTIVE_LENGTH_MM,
+            n_points=N_POINTS, min_nonlinearity=MIN_NONLINEAR_DIFFERENCE,
+        )
+        print(f"\nAccepted {len(results)} of {len(AMPLITUDES_MM) ** len(MODES)} combinations.")
+        print(f"Mode order: {tuple(int(mode) for mode in MODES)}")
+        print(f"Minimum nonlinearity: {100 * MIN_NONLINEAR_DIFFERENCE:g}%")
+        print(f"Allowable uniaxial stress: {YIELD_STRENGTH_MPA / YIELD_SAFETY_FACTOR:g} MPa")
+        print(f"Gradient limit: {max_strain_grad(GAGE_PITCH):g} microstrain/mm")
+        if results:
+            table = pd.DataFrame(results)
+            table["max_nonlinearity"] *= 100
+            table["max_strain_difference"] *= 1e6
+            table = table.rename(columns={
+                "amplitudes": "Amplitudes (mm)",
+                "max_nonlinearity": "Max Nonlinearity (%)",
+                "max_strain_difference": "Strain difference (microstrain)",
+                "max_strain_gradient": "Peak gradient (microstrain/mm)",
+                "max_stress": "Peak stress (MPa)",
+            })
+            print(table.to_string(index=False, float_format=lambda value: f"{value:.4g}"))
+        else:
+            print("No combinations satisfy all configured limits.")
 
-    amplitudes = np.arange(0, 5.25, 0.25)  # 0, 0.25, ..., 5 mm
-    modes = np.arange(1, 5)                # Modes 1 through 4
-
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-    viable_cases = sweep_superposed_modes(
-        amplitudes, modes, args.thickness_mm,
-        args.youngs_modulus_mpa, args.yield_strength_mpa,
-    )
-    rounded_cases = viable_cases.round({
-        "Peak curvature reduction (%)": 2,
-        "Peak bending strain": 6,
-        "Peak von Mises stress (MPa)": 1,
-        "Yield utilization": 3,
-    })
-    print(f"\n{len(rounded_cases)} of {len(amplitudes) ** len(modes)} four-mode cases below yield:")
-    print(rounded_cases.to_string(index=False))
-    rounded_cases.to_csv(args.output_dir / "bending_yield_comparison.csv", index=False)
-    print(f"\nSaved viable combinations to {args.output_dir / 'bending_yield_comparison.csv'}")
+        # Save configuration first, followed by the same results shown in the terminal.
+        if not results:
+            table = pd.DataFrame(columns=[
+                "Amplitudes (mm)", "Max Nonlinearity (%)",
+                "Strain difference (microstrain)",
+                "Peak gradient (microstrain/mm)", "Peak stress (MPa)",
+            ])
+        parameters = {
+            "Amplitude spacing (mm)": spacing,
+            "Minimum amplitude (mm)": min_amp,
+            "Maximum amplitude (mm)": max_amp,
+            "Amplitude options (mm)": AMPLITUDES_MM.tolist(),
+            "Modes (amplitude tuple order)": MODES.tolist(),
+            "Active length (mm)": ACTIVE_LENGTH_MM,
+            "Thickness (mm)": THICKNESS_MM,
+            "Young's modulus (MPa)": YOUNGS_MODULUS_MPA,
+            "Yield strength (MPa)": YIELD_STRENGTH_MPA,
+            "Yield safety factor": YIELD_SAFETY_FACTOR,
+            "Minimum nonlinearity (fraction)": MIN_NONLINEAR_DIFFERENCE,
+            "Gage pitch (mm)": GAGE_PITCH,
+            "Strain-gradient limit (microstrain/mm)": max_strain_grad(GAGE_PITCH),
+            "Position sample count": N_POINTS,
+            "Stress model": "Uniaxial elastic bending: E * abs(strain)",
+            "Total combinations": len(AMPLITUDES_MM) ** len(MODES),
+            "Accepted combinations": len(results),
+        }
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        with output_file.open("w", newline="", encoding="utf-8") as file:
+            writer = csv.writer(file)
+            writer.writerow(["Input parameter", "Value"])
+            writer.writerows(parameters.items())
+            writer.writerow([])
+            table.to_csv(file, index=False)
+        print(f"Saved: {output_file}")

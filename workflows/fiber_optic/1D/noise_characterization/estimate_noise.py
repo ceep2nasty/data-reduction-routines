@@ -18,14 +18,18 @@ from empirical_basis_inversion import (
 import matplotlib.pyplot as plt
 
 from select_luna_rois import select_luna_rois
+from plot_format import format_plot
 
 # The existing module name starts with a digit, so use importlib to import it.
 center_rois = importlib.import_module("1D_find_center").center_rois
 
 
+# Overrides for every figure; shared defaults live in subroutines/plot_format.py.
+PLOT_FORMAT = {}  # Example: {"legend_loc": "upper right", "legend_size": 14}
+
 # window selection settings
-INPUT_FILE = Path(r"Z:\Cole\FTSI\Luna_Data\NOISE_CHARACTERIZATION\1mm\0-65\1MM_BOTTOM_0-65_2026-10-07_01-38-25_ch1_gages.tsv")
-OUTPUT_DIR = Path(r"Z:\Cole\FTSI\Luna_Data\NOISE_CHARACTERIZATION\outputs\1mm\bottom")
+INPUT_FILE = Path("/mnt/lab_storage/Cole/FTSI/Luna_Data/NOISE_CHARACTERIZATION/collected data/1mm/0-65/1MM_BOTTOM_0-65_2026-10-07_01-38-25_ch1_gages.tsv")
+OUTPUT_DIR = Path("/mnt/lab_storage/Cole/FTSI/Luna_Data/NOISE_CHARACTERIZATION/outputs/1mm/0-65/bottom")
 SAVE_NAME = "1mm_bottom_0-65_rois"
 PASS_COUNT = 1
 SAVE_PLOTS = False  # True saves the analysis figures as PNGs in OUTPUT_DIR.
@@ -38,10 +42,10 @@ ROI_JSON = OUTPUT_DIR / f"{SAVE_NAME}.json"
 # Displacement comparison: 1 mm cosine amplitude gives 2 mm maximum deflection.
 IMPOSED_AMPLITUDE_MM = 1.0
 IMPOSED_DIRECTION = -1  # Actual target: -1 downward; +1 upward.
-CALIBRATION_DIRECTION = 1  # Positive amplitude in the saved calibration: top +1, bottom -1.
+CALIBRATION_DIRECTION = -1  # Positive amplitude in the saved calibration: top +1, bottom -1.
 
 # calibration file settings
-basis_cal_path = Path(r"Z:\Cole\FTSI\Luna_Data\NOISE_CHARACTERIZATION\optical_basis_cal\1mm_top_mode1_0-65.npz")
+basis_cal_path = Path("/mnt/lab_storage/Cole/FTSI/Luna_Data/NOISE_CHARACTERIZATION/optical_basis_cal/1mm/1mm_bottom_mode1_0-65.npz")
 
 
 
@@ -57,12 +61,16 @@ def prepare_noise_data(input_file, output_dir, save_name, pass_count,
     """
     output_dir = Path(output_dir)
     state = {}
+    initial_figures = set(plt.get_fignums())
 
     def process_selection(saved):
         trimmed, centers = center_rois(
             saved, output_dir / f"{save_name}_centered.json",
             active_length_m, smoothing_points,
         )
+        # Include the saved-ROI preview created by the selector before this callback.
+        for number in set(plt.get_fignums()) - initial_figures:
+            format_plot(plt.figure(number), **PLOT_FORMAT)
         state.update(centered_data=trimmed, centers=centers)
 
     if existing_roi_json is not None:
@@ -73,6 +81,7 @@ def prepare_noise_data(input_file, output_dir, save_name, pass_count,
         input_file, output_dir / f"{save_name}.json", pass_count,
         metadata, on_saved=process_selection,
     )
+    format_plot(fig, **PLOT_FORMAT)
     return state, fig
 
 def load_noise_data(json_path, pass_name="pass_1"):
@@ -159,6 +168,7 @@ def process_noise_raw_spectra(data, *, make_plots=True):
     )
     axes[2].grid(True)
 
+    format_plot(fig, **PLOT_FORMAT)
     stats["figure"] = fig
     return stats
 
@@ -229,6 +239,7 @@ def process_fit_noise(data, optical_basis, *, imposed_amplitude_mm,
     )
     ax.legend(loc="lower left")
     ax.grid(True)
+    format_plot(fig, **PLOT_FORMAT)
     stats["figure"] = fig
     return stats
 

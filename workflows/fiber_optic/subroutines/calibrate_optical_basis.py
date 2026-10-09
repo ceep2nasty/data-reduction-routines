@@ -19,8 +19,8 @@ from select_luna_rois import select_luna_rois
 center_rois = importlib.import_module("1D_find_center").center_rois
 
 # ROI selection and centering settings.
-INPUT_FILE = Path(r"Z:\Cole\FTSI\Luna_Data\NOISE_CHARACTERIZATION\1mm\0-65\1MM_TOP_0-65_2026-10-07_01-47-00_ch1_full.tsv")
-ROI_OUTPUT_DIR = Path(r"Z:\Cole\FTSI\Luna_Data\NOISE_CHARACTERIZATION\outputs\1mm\top")
+INPUT_FILE = Path("/mnt/lab_storage/Cole/FTSI/Luna_Data/NONLINEARITY_ESTIMATION/collected data/mode1/1mm/0-65/1MM_BOTTOM_0-65_2026-10-07_01-38-25_ch1_full.tsv")
+ROI_OUTPUT_DIR = Path("/mnt/lab_storage/Cole/FTSI/Luna_Data/NOISE_CHARACTERIZATION/outputs/1mm/0-65/top")
 SAVE_NAME = "1mm_top_0-65_rois"
 PASS_COUNT = 1
 SMOOTHING_POINTS = 3
@@ -29,7 +29,7 @@ ROI_JSON = ROI_OUTPUT_DIR / f"{SAVE_NAME}.json"
 
 # Exported readings already have the tare subtracted.
 ADD_TARE_BACK = False
-TARE_SOURCE_FILE = Path(r"Z:\Cole\FTSI\Luna_Data\NOISE_CHARACTERIZATION\1mm\0-65\1MM_BOTTOM_0-65_2026-10-07_01-38-25_ch1_full.tsv")  # Shared-reference assumption: top has no numeric tare row.
+TARE_SOURCE_FILE = Path("/mnt/lab_storage/Cole/FTSI/Luna_Data/NOISE_CHARACTERIZATION/collected data/1mm/0-65/1MM_BOTTOM_0-65_2026-10-07_01-38-25_ch1_full.tsv")  # Shared-reference assumption: top has no numeric tare row.
 TARE_SUFFIX = "_no_tare" if ADD_TARE_BACK else ""
 
 # Edit these settings for each pure-mode calibration case.
@@ -44,7 +44,7 @@ WINDOW_START_MM = 0.0
 TIME_START_S = None  # None uses the whole recording; choose a steady interval if needed.
 TIME_END_S = None
 SAVE_BASIS = True  # Enable after inspecting the fit; existing files are protected.
-OUTPUT_DIR = Path(r"Z:\Cole\FTSI\Luna_Data\NOISE_CHARACTERIZATION\optical_basis_cal")
+OUTPUT_DIR = Path("/mnt/lab_storage/Cole/FTSI/Luna_Data/NOISE_CHARACTERIZATION/optical_basis_cal/1mm")
 BASIS_NAME = "top_mode1"
 # Empty: inspect the calibration recording itself (consistency check).
 # Set paths to saved mode bases to fit an independent target, stacked in list order.

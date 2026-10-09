@@ -14,10 +14,11 @@ from pathlib import Path
 
 from estimate_noise import analyze_recording, load_noise_data, center_rois
 from select_luna_rois import load_recording, save_recording, json_ready
+from plot_format import format_plot
 from empirical_basis_inversion import calibrate_basis, save_calibrated_basis, load_calibrated_basis
 
 
-DATA_ROOT = Path(r"Z:\Cole\FTSI\Luna_Data\NOISE_CHARACTERIZATION")
+DATA_ROOT = Path("/mnt/lab_storage/Cole/FTSI/Luna_Data/NOISE_CHARACTERIZATION")
 OUTPUT_DIR = DATA_ROOT / "outputs"
 ACTIVE_LENGTH_MM = 50.0
 SMOOTHING_POINTS = 3
@@ -178,6 +179,7 @@ def calibrate_full_case(case, data_root, *, save_plots=True):
         axes[1].set(xlabel="Position (mm)", ylabel="Fit residual (GHz)")
         for ax in axes:
             ax.grid(True)
+        format_plot(fig)
         fig.savefig(calibration_dir / f"{basis_name}.png", dpi=300)
         plt.close(fig)
     return dict(name=name, centered_json=centered_path, calibration_path=calibration_path,
@@ -223,6 +225,7 @@ def plot_noise_vs_amplitude(rows, output_dir, *, show=False):
         axes[-1].set_xlabel("Imposed cosine amplitude (mm)")
         axes[-1].set_xticks(sorted({float(row["imposed_amplitude_mm"]) for row in rows}))
         path = output_dir / f"{side}_noise_std_vs_amplitude.png"
+        format_plot(fig)
         fig.savefig(path, dpi=300)
         paths.append(path)
         figures.append(fig)
@@ -242,7 +245,7 @@ def calibrate_and_process_batch(data_root=DATA_ROOT, *, save_plots=True):
     """
     data_root = Path(data_root)
     rows, skipped = [], []
-    for case in discover_full_cases(data_root):
+    for case in discover_full_cases(data_root / "collected data"):
         if case["imposed_amplitude_mm"] == 0:
             skipped.append({"input_file": str(case["input_file"]),
                             "reason": "Zero-amplitude calibration is undefined; left untouched"})
