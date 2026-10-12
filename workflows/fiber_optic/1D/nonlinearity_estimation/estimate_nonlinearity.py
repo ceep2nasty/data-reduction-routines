@@ -3,6 +3,7 @@
 import csv
 import importlib
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -17,17 +18,24 @@ from select_luna_rois import select_luna_rois, load_recording, save_recording, j
 
 center_rois = importlib.import_module("1D_find_center").center_rois
 DATA_ROOT = Path("/mnt/lab_storage/Cole/FTSI/Luna_Data/NONLINEARITY_ESTIMATION")
+GAGE_PITCH_MM = 2.60
+SIDE = "top"
+PITCH_KEY = f"{GAGE_PITCH_MM:g}".replace(".", "-")
 OUTPUT_ROOT = DATA_ROOT / "outputs" / "arc_registered"
-INPUT_FILE = DATA_ROOT / "collected data/mode1/2mm/0-65/2MM_BOTTOM_0-65_2026-10-06_22-53-09_ch1_full.tsv"
-OUTPUT_DIR = OUTPUT_ROOT / "mode1/2mm/0-65"
+if GAGE_PITCH_MM != 0.65:
+    OUTPUT_ROOT = OUTPUT_ROOT / f"gage_pitch_{GAGE_PITCH_MM:.2f}mm"
+if SIDE != "bottom":
+    OUTPUT_ROOT = OUTPUT_ROOT / SIDE
+INPUT_FILE = DATA_ROOT / "collected data/mode1/2mm/2-6/2MM_TOP_2-6_2026-10-06_23-00-40_ch1_full.tsv"
+OUTPUT_DIR = OUTPUT_ROOT / "mode1/2mm" / PITCH_KEY
 ROI_JSON = OUTPUT_DIR / f"{INPUT_FILE.stem}_rois.json"
 FIGURE_OUTPUT_DIR = OUTPUT_DIR / "figures"
-CALIBRATION_FILES = [OUTPUT_ROOT / "calibration/1mm_bottom_mode1_0-65_linear.npz"]
+CALIBRATION_FILES = [OUTPUT_ROOT / "calibration" / f"1mm_{SIDE}_mode1_{PITCH_KEY}_linear.npz"]
 ACTIVE_LENGTH_MM = 50.0
-CALIBRATION_PADDING_MM = 1.0  # Per end, beyond the nominal active region.
+CALIBRATION_PADDING_MM = 3.0 if GAGE_PITCH_MM > 1.0 else 1.0  # Bracket interpolation at coarse pitch.
 ROI_PADDING_MM = 5.0
 IMPOSED_AMPLITUDES_MM = np.array([2.0])  # Plot reference only; never used in target fitting.
-DISPLACEMENT_DIRECTION = -1
+DISPLACEMENT_DIRECTION = 1 if SIDE == "top" else -1
 SMOOTHING_POINTS = 5
 PASS_COUNT = 1
 USE_EXISTING_ROIS = True
@@ -168,10 +176,58 @@ def main(*, show=True):
     return results
 
 
+def plot_amplitude_summary(rows, output_dir, *, gage_pitch_mm=GAGE_PITCH_MM, side=SIDE):
+    """Compare the saved mode-1 fits across imposed amplitudes."""
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    rows = sorted(rows, key=lambda row: float(row["imposed_amplitude_mm"]))
+    imposed = np.array([float(row["imposed_amplitude_mm"]) for row in rows])
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True)
+    axes[0].plot(imposed, imposed, "k--", label="Imposed")
+    axes[1].axhline(1, color="black", linestyle="--", label="Perfect recovery")
+    for key, label, style in [("linear_amplitude_mm", "Arc-registered linear", "o-"),
+                              ("corrected_amplitude_mm", "Arc + finite slope", "x-")]:
+        amplitude = np.array([float(row[key]) for row in rows])
+        axes[0].plot(imposed, amplitude, style, label=label)
+        axes[1].plot(imposed, amplitude / imposed, style, label=label)
+    axes[0].set_ylabel("Reconstructed amplitude (mm)")
+    axes[1].set_ylabel(r"Normalized amplitude $A_{fit}/A_{imposed}$")
+    for ax in axes:
+        ax.set(xlabel="Imposed amplitude (mm)", xticks=imposed)
+        ax.grid(alpha=0.3)
+        ax.legend()
+    fig.suptitle(f"Measured {side}, mode 1, {gage_pitch_mm:.2f} mm pitch — shared linear 1 mm calibration")
+    format_plot(fig)
+    fig.savefig(output_dir / "reconstructed_amplitude_vs_imposed.png", dpi=250)
+    plt.close(fig)
+
+
+def plot_offset_summary(rows, output_dir, *, gage_pitch_mm=GAGE_PITCH_MM, side=SIDE):
+    """Plot the additive optical baseline; it is not a displacement offset."""
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    rows = sorted(rows, key=lambda row: float(row["imposed_amplitude_mm"]))
+    imposed = [float(row["imposed_amplitude_mm"]) for row in rows]
+    fig, ax = plt.subplots(figsize=(8, 5), constrained_layout=True)
+    for key, label, style in [("linear_offset_ghz", "Arc-registered linear", "o-"),
+                              ("corrected_offset_ghz", "Arc + finite slope", "x-")]:
+        ax.plot(imposed, [float(row[key]) for row in rows], style, label=label)
+    ax.set(xlabel="Imposed amplitude (mm)", ylabel="Fitted optical baseline offset (GHz)",
+           title=f"{side.capitalize()}, mode 1, {gage_pitch_mm:.2f} mm pitch", xticks=imposed)
+    ax.grid(alpha=0.3)
+    ax.legend()
+    format_plot(fig)
+    fig.savefig(output_dir / "offset_vs_imposed_amplitude.png", dpi=250)
+    plt.close(fig)
+
+
 def run_batch():
     global INPUT_FILE, OUTPUT_DIR, ROI_JSON, FIGURE_OUTPUT_DIR, IMPOSED_AMPLITUDES_MM
-    sources = sorted(p for p in (DATA_ROOT / "collected data" / "mode1").rglob("*.tsv")
-                     if "bottom_0-65_" in p.name.lower() and p.name.lower().endswith("_full.tsv"))
+    sources = []
+    for path in sorted((DATA_ROOT / "collected data" / "mode1").rglob("*_full.tsv")):
+        match = re.match(rf"\d+mm_{SIDE}_(\d+-\d+)_", path.name, re.I)
+        if match and np.isclose(float(match[1].replace("-", ".")), GAGE_PITCH_MM):
+            sources.append(path)  # Accept both 2-6 and 2-60 filename spellings.
     calibration_source = next(p for p in sources if float(p.name.lower().split("mm")[0]) == 1)
     recalibrate(calibration_source)
     rows = []
@@ -184,14 +240,22 @@ def run_batch():
         print(f"\n{source.name}")
         result = main(show=False)
         rows.append(dict(source_file=str(source), imposed_amplitude_mm=IMPOSED_AMPLITUDES_MM[0],
+                         gage_pitch_mm=GAGE_PITCH_MM, side=SIDE,
                          linear_amplitude_mm=result["linear"]["amplitudes_mm"][0],
                          corrected_amplitude_mm=result["corrected"]["amplitudes_mm"][0],
+                         linear_offset_ghz=result["linear"]["offset_ghz"],
+                         corrected_offset_ghz=result["corrected"]["offset_ghz"],
+                         linear_normalized_amplitude=result["linear"]["amplitudes_mm"][0] / IMPOSED_AMPLITUDES_MM[0],
+                         corrected_normalized_amplitude=result["corrected"]["amplitudes_mm"][0] / IMPOSED_AMPLITUDES_MM[0],
                          linear_arc_mm=result["linear"]["arc_length_mm"], corrected_arc_mm=result["corrected"]["arc_length_mm"],
                          linear_converged=result["linear"]["converged"], corrected_converged=result["corrected"]["converged"]))
     with (OUTPUT_ROOT / "summary.csv").open("w", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=list(rows[0]))
         writer.writeheader()
         writer.writerows(rows)
+    if SAVE_FIGURES:
+        plot_amplitude_summary(rows, OUTPUT_ROOT)
+        plot_offset_summary(rows, OUTPUT_ROOT)
     return rows
 
 

@@ -26,6 +26,7 @@ center_rois = importlib.import_module("1D_find_center").center_rois
 
 # Overrides for every figure; shared defaults live in subroutines/plot_format.py.
 PLOT_FORMAT = {}  # Example: {"legend_loc": "upper right", "legend_size": 14}
+SHAPE_PLOT_POINTS = 501  # Smooth display only; fits use the recorded gages.
 
 # window selection settings
 INPUT_FILE = Path("/mnt/lab_storage/Cole/FTSI/Luna_Data/NOISE_CHARACTERIZATION/collected data/1mm/0-65/1MM_BOTTOM_0-65_2026-10-07_01-38-25_ch1_gages.tsv")
@@ -219,13 +220,20 @@ def process_fit_noise(data, optical_basis, *, imposed_amplitude_mm,
 
     fig, ax = plt.subplots(figsize=(10, 5), constrained_layout=True)
     mean_amplitude_mm = stats["mean_amplitude_mm"]
-    ax.plot(position_mm, mean_shape_mm,
+    plot_position = np.linspace(0, active_length, SHAPE_PLOT_POINTS)
+    plot_shape = 1.0 - cosine_basis(
+        plot_position, active_length, [optical_basis["mode_number"]],
+        origin_mm=optical_basis["origin_mm"],
+    )[:, 0]
+    plot_mean = calibration_direction * mean_amplitude_mm * plot_shape
+    plot_half_width = 1.96 * amplitude_std_mm[0] * np.abs(plot_shape)
+    ax.plot(plot_position, plot_mean,
             label=f"Mean reconstructed shape (fitted amplitude {mean_amplitude_mm:.4g} mm)")
-    ax.plot(position_mm, imposed_shape_mm, "--", color="black",
+    ax.plot(plot_position, imposed_direction * imposed_amplitude_mm * plot_shape, "--", color="black",
             label=f"Imposed shape (cosine amplitude {imposed_amplitude_mm:g} mm)")
     ax.fill_between(
-        position_mm, mean_shape_mm - noise_half_width_mm,
-        mean_shape_mm + noise_half_width_mm, alpha=0.25,
+        plot_position, plot_mean - plot_half_width,
+        plot_mean + plot_half_width, alpha=0.25,
         label="Approx. 95% noise spread (1.96 x temporal std)",
     )
     ax.set_xlabel("Position (mm)")
