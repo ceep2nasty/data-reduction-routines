@@ -13,7 +13,7 @@ for font_path in FONT_DIR.glob("*.ttf"):
 # Edit these defaults once to style every caller. Sizes are in points.
 DEFAULTS = {
     "font_family": "Times New Roman",
-    "font_size": 12,
+    "font_size": 18,
     "title_size": 16,
     "label_size": 14,
     "tick_size": 12,
