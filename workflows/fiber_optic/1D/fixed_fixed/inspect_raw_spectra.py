@@ -16,40 +16,41 @@ plt.rcParams.update({'font.size': 20,
                      'font.serif': ['Times New Roman'],
                      }) # Sets global font size
 
-DATA_DIR = Path(r"Z:\Cole\FTSI\Luna_Data\fixed_fixed")
-SOURCE_FILE = (
-    DATA_DIR / "raw" / "spec2" / "top" / "flat"
-    / "flat_top_spec2_test2_notare_compressed_2026-10-16_15-16-41_ch1_gages.tsv"
-)
-save = False
-save_filename = "top_flat_raw_spectra"
-save_path = (DATA_DIR / "outputs" / "flat" / save_filename )
+DATA_DIR = Path(r"C:\Users\coled_agkeohi\Notre Dame\FTSI F26\fixed-fixed")
+SOURCE_FILES = [
+    DATA_DIR / "roi extended/spec2/top/flat/flat_spec2_top_roi_extended.tsv",
+    DATA_DIR / "roi extended/spec2/bottom/flat/flat_spec2_bottom_roi_extended.tsv",
+]
+TITLES = [None, None]
+save = True
+save_filename = "top_bottom_flat_raw_spectra.png"
+save_path = DATA_DIR / "outputs" / "raw_spectra_examples" / save_filename
 
 
 def main():
-    recording = read_fos_tsv(SOURCE_FILE, segment="Pass")
-    position_m = recording["position_m"]
-    shift = recording["spectral_shift_ghz"]
-
-    # Preserve NaN at gages where every sample is missing.
-    count = np.sum(~np.isnan(shift), axis=0)
-    mean_shift = np.divide(
-        np.nansum(shift, axis=0), count,
-        out=np.full(position_m.shape, np.nan), where=count > 0,
-    )
-
-    fig, ax = plt.subplots(figsize=(9, 4), constrained_layout=True)
-    ax.plot(position_m, mean_shift, linewidth=1)
-    ax.set_xlabel("Fiber position (m)")
-    ax.set_ylabel("Time-averaged spectral shift (GHz)")
-    ax.grid(alpha=0.25)
-
-    ax.set_title("Fiber on top")
+    fig, axes = plt.subplots(2, 1, figsize=(18, 5), constrained_layout=True)
+    recordings = []
+    for ax, source, title in zip(axes, SOURCE_FILES, TITLES):
+        recording = read_fos_tsv(source, segment="Pass")
+        recordings.append(recording)
+        position_m = recording["position_m"]
+        shift = recording["spectral_shift_ghz"]
+        # Preserve NaN at gages where every sample is missing.
+        count = np.sum(~np.isnan(shift), axis=0)
+        mean_shift = np.divide(
+            np.nansum(shift, axis=0), count,
+            out=np.full(position_m.shape, np.nan), where=count > 0,
+        )
+        ax.plot(position_m, mean_shift, linewidth=1)
+        ax.grid(alpha=0.25)
+    fig.supylabel("Time-averaged spectral shift (GHz)")
+    fig.supxlabel("Fiber position (m)")
     if save:
+        save_path.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(save_path, dpi=300, bbox_inches="tight")
 
     plt.show()
-    return recording
+    return recordings
 
 
 if __name__ == "__main__":
