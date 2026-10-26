@@ -1,4 +1,4 @@
-function pcbData = loadPcbData(cfg)
+function [pcbData, cfg] = loadPcbData(cfg)
 %LOADPCBDATA Load a converted MAT-file or Perception text export.
 
 filePath = string(cfg.input.file);
@@ -13,7 +13,7 @@ if isfield(cfg.input, 'source') && string(cfg.input.source) == "txt"
         'Configured rates must match the text export grid (%.9g Hz).', ...
         pcbData.exportSamplingRate);
 else
-    pcbData = readMatFile(filePath, cfg);
+    [pcbData, cfg] = readMatFile(filePath, cfg);
 end
 
 validateNormalizedData(pcbData, filePath);
@@ -22,9 +22,11 @@ pcbData.signalData = pcbData.signalData(:);
 fprintf('Loaded PCB data: %s\n', filePath);
 end
 
-function pcbData = readMatFile(filePath, cfg)
+function [pcbData, cfg] = readMatFile(filePath, cfg)
 loadedData = load(filePath);
-if isfield(loadedData, 'pcbData')
+if isfield(loadedData, 'runData')
+    [pcbData, cfg] = normalizeRunData(loadedData.runData, cfg);
+elseif isfield(loadedData, 'pcbData')
     pcbData = loadedData.pcbData;
 elseif isfield(loadedData, 'blockData')
     pcbData = loadedData.blockData;
@@ -33,7 +35,7 @@ elseif isfield(loadedData, char(cfg.input.variable))
     pcbData = normalizeLegacyPerceptionData(legacyData, cfg);
 else
     error('loadPcbData:MissingVariable', ...
-        'Expected pcbData, blockData, or %s in %s.', ...
+        'Expected runData, pcbData, blockData, or %s in %s.', ...
         cfg.input.variable, filePath);
 end
 
@@ -42,6 +44,65 @@ if isstruct(pcbData) && ~isfield(pcbData, 'channels') && ...
     pcbData = normalizeLegacyPerceptionData(pcbData, cfg);
 end
 
+end
+
+function [pcbData, cfg] = normalizeRunData(runData, cfg)
+% Keep archived voltages unchanged; calibration applies to analysis copies.
+names = fieldnames(runData.data);
+pcbNames = names(startsWith(names, 'pcb'));
+positions = cellfun(@(name) runData.data.(name).positionIndex, pcbNames);
+[~, order] = sort(positions);
+pcbNames = pcbNames(order);
+names = [pcbNames; {'driver'; 'trigger'}];
+channels = strings(numel(names), 1);
+signals = repmat(struct('time', [], 'signal', [], 'units', "V"), numel(names), 1);
+applyCalibration = isfield(cfg.input, 'applyPcbCalibration') && cfg.input.applyPcbCalibration;
+rates = zeros(numel(pcbNames), 1);
+numbers = rates;
+axialDistance = nan(size(rates));
+for k = 1:numel(names)
+    record = runData.data.(names{k});
+    channels(k) = string(record.sourceChannel);
+    signals(k).time = record.time_s(:);
+    if k <= numel(pcbNames)
+        rates(k) = record.samplingRate_Hz;
+        numbers(k) = record.sensorNumber;
+        axialDistance(k) = record.axialDistance_m;
+        signals(k).signal = record.signal_V(:);
+        if applyCalibration
+            gain = record.calibration.constant_Pa_per_V;
+            if ~isfinite(gain) && isfield(record.calibration, 'sensitivity_mV_per_psi')
+                gain = 6894.757293168 * 1000 / record.calibration.sensitivity_mV_per_psi;
+            end
+            assert(isscalar(gain) && isfinite(gain) && gain ~= 0, ...
+                'loadPcbData:MissingCalibration', 'Missing calibration for %s.', channels(k));
+            signals(k).signal = signals(k).signal * gain;
+            signals(k).units = "Pa";
+        end
+    elseif isfield(record, 'pressure_Pa')
+        signals(k).signal = record.pressure_Pa(:);
+        signals(k).units = "Pa";
+    else
+        signals(k).signal = record.signal_V(:);
+    end
+end
+pcbData = struct('channels', channels, 'signalData', signals, 'metadata', runData.metadata);
+if isfield(cfg.input, 'useRunDataMapping') && cfg.input.useRunDataMapping
+    assert(all(rates == rates(1)), 'loadPcbData:MixedPcbRates', ...
+        'The PSD workflow requires one sampling rate for selected PCB channels.');
+    cfg.channels.data = channels(1:numel(pcbNames)).';
+    cfg.channels.sensorNumbers = numbers.';
+    cfg.channels.axialDistance_m = axialDistance.';
+    cfg.channels.order = numbers.';
+    cfg.channels.dataSamplingRate = rates(1);
+    cfg.channels.driver = string(runData.data.driver.sourceChannel);
+    cfg.channels.trigger = string(runData.data.trigger.sourceChannel);
+    cfg.channels.driverSamplingRate = runData.data.driver.samplingRate_Hz;
+    cfg.channels.triggerSamplingRate = runData.data.trigger.samplingRate_Hz;
+    if ~ismember(string(cfg.timing.pcbAnalysisChannel), cfg.channels.data)
+        cfg.timing.pcbAnalysisChannel = cfg.channels.data(1);
+    end
+end
 end
 
 function pcbData = readTextExport(filePath)

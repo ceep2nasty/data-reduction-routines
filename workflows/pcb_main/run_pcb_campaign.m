@@ -47,7 +47,7 @@ for k = 1:numel(files)
         end
         cfg.input.source = "mat"; cfg.input.file = cache;
         if january
-            cfg.channels.data = ["D01", "D02", "C01", "D05", "D08", "D07", "D06"];
+            cfg.channels.data = ["D01", "D02", "D05", "C01", "D08", "D07", "D06"];
             cfg.channels.sensorNumbers = 2:8; cfg.channels.order = 2:8;
             cfg.channels.driverSamplingRate = 2e6;
             cfg.channels.triggerSamplingRate = 2e6;

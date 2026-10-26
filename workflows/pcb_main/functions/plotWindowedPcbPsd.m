@@ -50,7 +50,10 @@ for windowIndex = renderIndices
         'Position', cfg.plotting.figurePosition, 'Visible', 'off');
     % Also release an export-only figure if plotting or saving fails.
     cleanupFigure = onCleanup(@() closeExportFigure(plotFigure, isempty(previewIndex)));
-    axesHandle = axes('Parent', plotFigure);
+    fontName = "Times New Roman";
+    if isfield(cfg.plotting, 'fontName'), fontName = string(cfg.plotting.fontName); end
+    fontSize = cfg.plotting.fontSize;
+    axesHandle = axes('Parent', plotFigure, 'FontSize', fontSize, 'FontName', fontName);
     hold(axesHandle, 'on');
     grid(axesHandle, 'on');
     box(axesHandle, 'on');
@@ -65,12 +68,13 @@ for windowIndex = renderIndices
     end
 
     xlim(axesHandle, plotBandKHz);
-    xlabel(axesHandle, 'Frequency (kHz)');
-    ylabel(axesHandle, 'PSD (dB/Hz)');
-    title(axesHandle, sprintf('PCB PSD: %.4f to %.4f s', ...
-        psdResults.windowStartTime(windowIndex), ...
-        psdResults.windowEndTime(windowIndex)));
-    legend(axesHandle, 'Location', 'best');
+    xlabel(axesHandle, 'Frequency (kHz)', 'FontSize', fontSize, 'FontName', fontName);
+    units = "V";
+    if isfield(psdResults, 'signalUnits'), units = string(psdResults.signalUnits); end
+    ylabel(axesHandle, "PSD (dB " + units + "^2/Hz)", 'FontSize', fontSize, 'FontName', fontName);
+    legendFontSize = 18;
+    if isfield(cfg.plotting, 'legendFontSize'), legendFontSize = cfg.plotting.legendFontSize; end
+    legend(axesHandle, 'Location', 'best', 'FontSize', legendFontSize, 'FontName', fontName);
 
     if cfg.output.saveWindowedPsdPlots
         fileName = sprintf('pcb_psd_%07.4f_%07.4f_s.png', ...

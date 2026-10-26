@@ -35,7 +35,7 @@ cfg.metadata.notes = "";
 %% USER INPUTS — CHANNEL MAPPING / GEOMETRY
 cfg.channels.recorderLabels = ["A", "B", "C", "D"];
 cfg.channels.maxPerRecorder = 8;
-janOrder = ["D01", "D02", "C01", "D05", "D08", "D07", "D06"];
+janOrder = ["D01", "D02", "D05", "C01", "D08", "D07", "D06"];
 febOrder = ["C01", "C02", "C03", "C04", "D01", "D02", "D03", "D04"];
 cfg.channels.pcb = febOrder;
 cfg.channels.positionIndex = 1:8;

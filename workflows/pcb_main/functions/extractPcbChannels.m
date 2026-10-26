@@ -1,6 +1,6 @@
 function [driverData, triggerData, dataData] = ...
     extractPcbChannels(cfg, pcbData)
-%EXTRACTPCBCHANNELS Extract configured channels onto one relative time base.
+%EXTRACTPCBCHANNELS Extract channels using relative or original source time.
 
 availableChannels = string(pcbData.channels(:));
 requestedChannels = [string(cfg.channels.driver); ...
@@ -24,6 +24,10 @@ dataData = extractGroup( ...
 
 timeOrigin = min([firstTimes(driverData), ...
     firstTimes(triggerData), firstTimes(dataData)]);
+if isfield(cfg, 'analysis') && isfield(cfg.analysis, 'timeReference') && ...
+        string(cfg.analysis.timeReference) == "absolute"
+    timeOrigin = 0;
+end
 driverData.time = shiftTimes(driverData.time, timeOrigin);
 triggerData.time = shiftTimes(triggerData.time, timeOrigin);
 dataData.time = shiftTimes(dataData.time, timeOrigin);
@@ -35,10 +39,19 @@ group.channels = channels;
 group.time = cell(size(channels));
 group.signal = cell(size(channels));
 group.samplingRate = samplingRate;
+group.units = "V";
 
 availableChannels = string(pcbData.channels(:));
 for channelIndex = 1:numel(channels)
     sourceIndex = find(availableChannels == channels(channelIndex), 1);
+    if isfield(pcbData.signalData, 'units')
+        units = string(pcbData.signalData(sourceIndex).units);
+        if channelIndex > 1
+            assert(units == group.units, 'extractPcbChannels:MixedUnits', ...
+                'Selected channels must share signal units.');
+        end
+        group.units = units;
+    end
     group.time{channelIndex} = ...
         pcbData.signalData(sourceIndex).time(:);
     group.signal{channelIndex} = ...

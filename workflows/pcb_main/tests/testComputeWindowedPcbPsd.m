@@ -9,6 +9,19 @@ testCase.applyFixture( ...
     matlab.unittest.fixtures.PathFixture(functionFolder));
 end
 
+function testWindowCountToleratesSourceClockRoundoff(testCase)
+fs = 20e3;
+time = (.4:1/fs:.6-1/fs).';
+time(1) = time(1) + 1e-12;
+data = struct('channels', "C01", 'time', {{time}}, ...
+    'signal', {{sin(2*pi*2000*time)}}, 'samplingRate', fs);
+cfg.psd = struct('windowDuration', .05, 'windowStep', .05, ...
+    'welchSegmentDuration', .005, 'welchOverlap', .5, 'detrend', "linear");
+result = computeWindowedPcbPsd(cfg, data);
+verifyEqual(testCase, numel(result.windowCenterTime), 4);
+verifyEqual(testCase, result.windowEndTime(end), .6, 'AbsTol', 2e-12);
+end
+
 function testComputesExpectedWindowsAndPeakFrequencies(testCase)
 samplingRate = 20e3;
 time = (0:1 / samplingRate:0.15 - 1 / samplingRate).';

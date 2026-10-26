@@ -1,0 +1,1 @@
+"""Fit a cosine to the given calibration data to form semi-empirical shift basis."""

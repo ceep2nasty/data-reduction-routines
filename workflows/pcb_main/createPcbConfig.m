@@ -30,6 +30,9 @@ cfg.input.file = ...
 
 % Legacy MAT files may store this variable instead of pcbData.
 cfg.input.variable = "Perception_Raw";
+% Packaged runData archives can supply channel order, sensor labels and rates.
+cfg.input.useRunDataMapping = false;
+cfg.input.applyPcbCalibration = false;
 
 % The PNRF reader requires Windows and the Perception ActiveX toolkit.
 % "disk" also saves normalized pcbData; "memory" only returns it.
@@ -77,6 +80,7 @@ cfg.run.closeFiguresAtStart = true;   % Close existing figures before running.
 % record, and "manual" uses cfg.analysis.manualTimeRange.
 cfg.analysis.interval = "quasiSteady";
 cfg.analysis.manualTimeRange = [0 1];
+cfg.analysis.timeReference = "relative"; % "absolute" preserves source timestamps.
 
 % Choose "useFullRecord" or "error" when automatic detection fails.
 cfg.analysis.onInvalidQuasiSteadyWindow = "useFullRecord";
@@ -110,7 +114,9 @@ cfg.timing.pcbUnstartRatio = 4.0; % Baseline ratio marking an unstart.
 
 %% Trace and general plotting
 
-cfg.plotting.fontSize = 25; % Text size for trace plots.
+cfg.plotting.fontSize = 24; % Text size for trace and PSD plots.
+cfg.plotting.legendFontSize = 18;
+cfg.plotting.fontName = "Times New Roman";
 cfg.plotting.smoothData = true; % Smooth copies used only for trace display.
 cfg.plotting.figurePosition = [10 10 1000 625]; % Figure pixel rectangle.
 
@@ -133,7 +139,7 @@ cfg.psd.welchOverlap = 0.50; % Fractional Welch segment overlap.
 cfg.psd.detrend = "linear"; % "linear", "constant", or "none".
 
 % Preview controls do not affect numerical PSD results.
-cfg.psd.plotFrequencyBand = [50e3 300e3]; % Preview x-axis limits [Hz].
+cfg.psd.plotFrequencyBand = [0 400e3]; % Preview x-axis limits [Hz].
 cfg.psd.previewWindowIndices = 4:5; % Positive indices or "all".
 
 %% Second-mode peak detection
