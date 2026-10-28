@@ -26,8 +26,13 @@ def numeric_values(row, columns, *, context):
                 ) from exc
     return np.asarray(values, dtype=float)
 
-def read_fos_tsv(path):
-    """Load one Luna TSV export, preserving the raw measurements."""
+def read_fos_tsv(path, *, segment="All Gages"):
+    """Load a Luna segment's positions and raw measurements.
+
+    Use segment="Pass" for exports containing Pass[0], Pass[1], etc.
+    Positions remain in the exported fiber coordinates (meters).
+    Missing tare data is represented by NaN.
+    """
 
     path = Path(path).expanduser().resolve()
 
@@ -37,12 +42,15 @@ def read_fos_tsv(path):
     with path.open("r", encoding="utf-8-sig", newline="") as file:
         rows = list(csv.reader(file, delimiter="\t"))
 
-    def find_row(label):
+    def find_row(label, *, required=True):
         matches = [
             index
             for index, row in enumerate(rows)
             if row and row[0].strip() == label
         ]
+
+        if not matches and not required:
+            return None
 
         if len(matches) != 1:
             raise ValueError(
@@ -54,7 +62,7 @@ def read_fos_tsv(path):
 
     names_index = find_row("Gage/Segment Name")
     position_index = find_row("x-axis")
-    tare_index = find_row("Tare")
+    tare_index = find_row("Tare", required=False)
 
     # Most metadata lines are "Key:\tValue".
     # A few place both the key and value in the first cell.
@@ -76,17 +84,17 @@ def read_fos_tsv(path):
     gage_columns = [
         index
         for index, name in enumerate(names)
-        if name.startswith("All Gages[")
+        if name.startswith(f"{segment}[")
     ]
 
     marker_columns = [
         index
         for index, name in enumerate(names)
-        if index >= 3 and name and index not in gage_columns
+        if index >= 3 and name and not (name.endswith("]") and "[" in name)
     ]
 
     if not gage_columns:
-        raise ValueError(f"{path.name}: no All Gages columns found")
+        raise ValueError(f"{path.name}: no {segment} columns found")
 
     def check_width(row_index):
         actual_width = len(rows[row_index])
@@ -98,7 +106,8 @@ def read_fos_tsv(path):
             )
 
     check_width(position_index)
-    check_width(tare_index)
+    if tare_index is not None:
+        check_width(tare_index)
 
     measurement_indices = [
         index
@@ -152,7 +161,7 @@ def read_fos_tsv(path):
 
     tare_shift_ghz = numeric_values(
         rows[tare_index], gage_columns, context=f"{path.name}: tare"
-    )
+    ) if tare_index is not None else np.full(len(gage_columns), np.nan)
 
     # Marker columns are kept separately from the full fiber profile.
     marker_positions = numeric_values(
@@ -168,7 +177,7 @@ def read_fos_tsv(path):
 
     marker_tare = numeric_values(
         rows[tare_index], marker_columns, context=f"{path.name}: marker tare"
-    )
+    ) if tare_index is not None else np.full(len(marker_columns), np.nan)
 
     markers = {
         names[column]: {

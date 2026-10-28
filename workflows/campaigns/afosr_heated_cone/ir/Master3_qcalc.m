@@ -4,6 +4,9 @@
 % calculates heat transfer from wall and backface temperatures
 
 %% set material properties
+MainDir = 'C:\Users\coled\Notre Dame\Github\data-reduction-routines\workflows\campaigns\afosr_heated_cone\ir';
+repoRoot = 'C:\Users\coled\Notre Dame\Github\data-reduction-routines';
+addpath(MainDir, genpath(fullfile(repoRoot,'matlab')));
 
 %close all; clear all; clc;
 materialID_1 = 'PEEK'; % material ID number.  See materials.m
@@ -124,15 +127,15 @@ FrameView = 440 ;
 if saveResults
 
     % ---- save location ----
-    saveRoot = "C:\Users\coled\Notre Dame\Github\Peters-Lab-PC\AFOSR_HeatedCone\Saved_Reduction_mats";
+    saveRoot = "Z:\Cole\heated_cone\heatedCone_F26\AFOSR_Heated_Cone_Jan2026\January_2026_IR_Data\Saved_Reduction_mats";
 
     if ~exist(saveRoot, 'dir')
         mkdir(saveRoot);
     end
 
     % ---- build run name ----
-    stamp = datestr(now,'yyyymmdd_HHMMSS');
-    runTag = sprintf('qcalc_%s_%s', materialID_1, stamp);
+    stamp = datestr(now,'yyyymmdd_HHMMSS_FFF');
+    runTag = sprintf('qcalc_%s_%s_%s', IRFolder, materialID_1, stamp);
 
     saveName = fullfile(saveRoot, sprintf('%s_data.mat', runTag));
 
@@ -142,6 +145,8 @@ if saveResults
     % metadata
     out.meta = struct();
     out.meta.materialID      = materialID_1;
+    out.meta.IRFolder        = IRFolder;
+    out.meta.IRDir           = IRDir;
     out.meta.coord           = coord;
     out.meta.backface        = backface;
     out.meta.nodes_user_max  = nodes_user_max;

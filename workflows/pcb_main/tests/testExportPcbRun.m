@@ -10,7 +10,7 @@ script = fileread(fullfile(root, 'export_pcb_run.m'));
 sections = split(string(script), '%% EXECUTION');
 eval(char(sections(1)));
 % Keep this seven-channel January fixture independent of script defaults.
-cfg.channels.pcb = ["D01", "D02", "C01", "D05", "D08", "D07", "D06"];
+cfg.channels.pcb = ["D01", "D02", "D05", "C01", "D08", "D07", "D06"];
 cfg.channels.positionIndex = 1:7;
 cfg.channels.sensorNumber = 2:8;
 folder = tempname;
@@ -37,6 +37,8 @@ pcbData.signalData(9).signal(:) = 0; % Preserve an all-zero trigger.
 save(cfg.input.file, 'pcbData');
 result = exportPcbRun(cfg);
 verifyEqual(testCase, result.data.pcb01.time_s, pcbData.signalData(1).time);
+verifyEqual(testCase, result.data.pcb03.sourceChannel, "D05");
+verifyEqual(testCase, result.data.pcb04.sourceChannel, "C01");
 for k = 1:7
     channel = result.data.(sprintf('pcb%02d', k));
     verifyEqual(testCase, channel.signal_V, pcbData.signalData(k).signal);

@@ -18,6 +18,10 @@ assert(all(found) && numel(unique(order)) == numel(order), ...
 channels = string(cfg.channels.data(:));
 cfg.channels.data = channels(indices);
 cfg.channels.sensorNumbers = numbers(indices);
+if isfield(cfg.channels, 'axialDistance_m')
+    positions = cfg.channels.axialDistance_m(:);
+    cfg.channels.axialDistance_m = positions(indices);
+end
 cfg.secondMode.channelsExcluded = intersect( ...
     string(cfg.secondMode.channelsExcluded), cfg.channels.data, 'stable');
 end

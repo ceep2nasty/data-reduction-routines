@@ -1,16 +1,19 @@
 
 %% Get pixel locations
+MainDir = 'C:\Users\coled\Notre Dame\Github\data-reduction-routines\workflows\campaigns\afosr_heated_cone\ir';
+repoRoot = 'C:\Users\coled\Notre Dame\Github\data-reduction-routines';
+addpath(MainDir, genpath(fullfile(repoRoot,'matlab')));
 close all;clc; cd(MainDir)
 %--------------------------------------------------------------------------
-Load_Reg_Points_Dir = strcat([MainDir,'/Subroutines/Saved_Reg_Points/']);
+Load_Reg_Points_Dir = strcat(["Z:\Cole\heated_cone\heatedCone_F26\AFOSR_Heated_Cone_Jan2026\January_2026_IR_Data\saved_regs"]);
 Load_or_Click = 'load' ;
-filenameStringRegPoints = 'RegPoints_01.mat';
+filenameStringRegPoints = 'Jan_AllH_60psi_reg_02.mat'; % reuse saved 60 psi image coordinates
 switch Load_or_Click
     case 'click'
         FrameView = 100;
         figure; pcolor(Data_Distort_Corrected(:,:,FrameView)); shading interp; axis equal tight
         colormap((gray));colorbar;  hold on
-        clim([10 30]);
+        clim([25 150]);
         [xi,yi] = getpts;
         x0=10; y0=10; width=1500*1.25; height=1500*1.25; set(gcf,'position',[x0,y0,width,height])
         plot(xi,yi,'rO')
@@ -24,7 +27,7 @@ end
 SaveReg = 0;
 if SaveReg == 1
     cd(Load_Reg_Points_Dir)
-    filenameStringRegPoints = strcat(['RegPoints_02', '.mat']);
+    filenameStringRegPoints = strcat(filenameStringRegPoints);
     save(filenameStringRegPoints,'xi','yi')
 end
 
@@ -35,9 +38,15 @@ close all; clc; cd(MainDir)
 uu = xi(:)';     
 vv = yi(:)';     
 
-halfanglecone = 7;         
+halfanglecone = 7;
+% Feb campaign stored values
 xAx   = [.62 .67 .73 .875 .925 .975];   % Nx = 6
 phiDeg = [-60 0 60];                    % Nphi = 3  
+
+%Jan campaign values
+
+xAx = [.63 .75 .88] ;
+phiDeg = [-60 0 60];
 
 % sanity
 Nx   = numel(xAx);
@@ -190,7 +199,8 @@ for k = 1:NumFrames2Map
     end
 end
 
-%Check mapping results
+
+%% check mapping results
 FrameView = 1;
 
 figure; tiledlayout('flow')
@@ -200,5 +210,90 @@ figure; tiledlayout('flow')
     nexttile
         surf(XC,YC,ZC,real(Tc(:,:,FrameView))); shading interp
         axis equal tight
+
         x0=10; y0=10; width=1000*1.25; height=400*1.25; set(gcf,'position',[x0,y0,width,height]);colorbar
 
+%% Check 1: reference-point overlay and reprojection errors
+% Run the diagnostic sections in order after mapping. No calibration is changed.
+checkFrame = FrameView;
+checkImage = double(Data_Distort_Corrected(:,:,checkFrame));
+checkU = xi(:)';
+checkV = yi(:)';
+assert(numel(checkU) == numel(X) && numel(checkV) == numel(X), ...
+    'Clicked points must match the number of physical reference points.');
+checkXYZ = [X; Y; Z; ones(1,numel(X))];
+checkProjection = PTM_3D * checkXYZ;
+checkUPred = checkProjection(1,:) ./ checkProjection(3,:);
+checkVPred = checkProjection(2,:) ./ checkProjection(3,:);
+checkError = hypot(checkUPred-checkU, checkVPred-checkV);
+MappingReferenceErrors = table((1:numel(X))', X(:), phi(:), ...
+    checkU(:), checkV(:), checkUPred(:), checkVPred(:), checkError(:), ...
+    'VariableNames', {'Point','x','phi_deg','Clicked_u','Clicked_v', ...
+    'Projected_u','Projected_v','Error_px'});
+disp(MappingReferenceErrors)
+fprintf('Reference fit: RMS %.3f px; maximum %.3f px\n', ...
+    sqrt(mean(checkError.^2)), max(checkError));
+figure('Name','Reference-point reprojection');
+imagesc(checkImage); set(gca,'YDir','normal'); axis image; colormap(gray); hold on
+plot(checkU,checkV,'go','DisplayName','Clicked');
+plot(checkUPred,checkVPred,'r+','DisplayName','Projected');
+for checkIdx = 1:numel(X)
+    plot([checkU(checkIdx) checkUPred(checkIdx)], ...
+        [checkV(checkIdx) checkVPred(checkIdx)],'y-','HandleVisibility','off');
+    text(checkU(checkIdx)+2,checkV(checkIdx),num2str(checkIdx),'Color','c');
+end
+legend('Location','best'); xlabel('u (column)'); ylabel('v (row)');
+title('Fit to clicked references: small errors do not verify assigned coordinates');
+
+%% Check 2: projected centerline and axial station overlay
+checkX = xc(:)';
+checkCenterXYZ = [checkX; zeros(size(checkX)); ...
+    tand(halfanglecone)*checkX; ones(size(checkX))];
+checkCenterProjection = PTM_3D * checkCenterXYZ;
+checkCenterU = checkCenterProjection(1,:) ./ checkCenterProjection(3,:);
+checkCenterV = checkCenterProjection(2,:) ./ checkCenterProjection(3,:);
+checkStations = [xAx; zeros(size(xAx)); ...
+    tand(halfanglecone)*xAx; ones(size(xAx))];
+checkStationProjection = PTM_3D * checkStations;
+checkStationU = checkStationProjection(1,:) ./ checkStationProjection(3,:);
+checkStationV = checkStationProjection(2,:) ./ checkStationProjection(3,:);
+checkCenterRefs = find(abs(phi) < 1e-10);
+figure('Name','Centerline alignment');
+imagesc(checkImage); set(gca,'YDir','normal'); axis image; colormap(gray); hold on
+plot(checkCenterU,checkCenterV,'c-','DisplayName','Projected phi = 0');
+plot(checkStationU,checkStationV,'r+','DisplayName','Axial stations');
+plot(checkU(checkCenterRefs),checkV(checkCenterRefs),'go', ...
+    'DisplayName','Clicked centerline marks');
+for checkIdx = 1:numel(xAx)
+    text(checkStationU(checkIdx)+3,checkStationV(checkIdx), ...
+        sprintf('x = %.3f',xAx(checkIdx)),'Color','y');
+end
+legend('Location','best'); xlabel('u (column)'); ylabel('v (row)');
+title('Check the line and station labels against physical image features');
+
+%% Check 3: hold out each centerline reference and predict its location
+% Uses all remaining references, including the estimated off-center points.
+% This tests consistency; it cannot establish that the assumed angles are true.
+checkHoldoutError = nan(numel(checkCenterRefs),1);
+checkHoldoutRank = zeros(numel(checkCenterRefs),1);
+for checkIdx = 1:numel(checkCenterRefs)
+    checkHeld = checkCenterRefs(checkIdx);
+    checkKeep = true(1,numel(X)); checkKeep(checkHeld) = false;
+    checkB = checkXYZ(:,checkKeep)';
+    checkA = [checkB zeros(size(checkB)) -checkU(checkKeep)'.*checkB(:,1:3); ...
+        zeros(size(checkB)) checkB -checkV(checkKeep)'.*checkB(:,1:3)];
+    checkHoldoutRank(checkIdx) = rank(checkA);
+    if checkHoldoutRank(checkIdx) < 11
+        continue % Remaining geometry does not determine this 3D model.
+    end
+    checkP = checkA \ [checkU(checkKeep)'; checkV(checkKeep)'];
+    checkPTM = [checkP(1:4)'; checkP(5:8)'; checkP(9:11)' 1];
+    checkQ = checkPTM * checkXYZ(:,checkHeld);
+    checkHoldoutError(checkIdx) = hypot(checkQ(1)/checkQ(3)-checkU(checkHeld), ...
+        checkQ(2)/checkQ(3)-checkV(checkHeld));
+end
+MappingHoldoutErrors = table(checkCenterRefs(:), X(checkCenterRefs)', ...
+    checkHoldoutRank, checkHoldoutError, ...
+    'VariableNames',{'HeldOutPoint','x','FitRank','PredictionError_px'});
+disp(MappingHoldoutErrors)
+fprintf('NaN holdout errors indicate a rank-deficient remaining fit (requires rank 11).\n');

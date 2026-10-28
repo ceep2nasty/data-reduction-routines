@@ -44,15 +44,19 @@ cfg = createPcbConfig();
 %   cfg.input.source      "pnrf", "mat", or "txt"
 %   cfg.input.rawFolder   folder containing a raw PNRF recording
 %   cfg.input.rawFileName exact PNRF filename
-%   cfg.input.file        converted MAT-file or Perception text export
+%   cfg.input.file        packaged runData MAT-file or converted recording
 
-dataRoot = ...
-    "C:\Users\coled\Notre Dame\heatedCone_F26\AFOSR_Heated_Cone_Jan2026";
-cfg.input.source = "txt";
+dataRoot = "C:\Users\coled_agkeohi\Notre Dame\heated_cone_f26";
+% Change these two values for the other January/February packaged recordings.
+campaign = "Jan2026_corrected_order";
+caseName = "AllHot_90psi";
+cfg.input.source = "mat";
 cfg.input.rawFolder = fullfile(dataRoot, "raw_pnrf_files");
-cfg.input.rawFileName = ""; % Unused for text input.
+cfg.input.rawFileName = ""; % Unused for MAT input.
 cfg.input.file = fullfile( ...
-    dataRoot, "PCB_Data", "Iso_90psi", "Iso_90psi_001.txt");
+    dataRoot, campaign, caseName, caseName + ".mat");
+cfg.input.useRunDataMapping = true;
+cfg.input.applyPcbCalibration = true;
 
 %% Channels -- change when the recorder layout changes
 % recorderLabels follows Perception recorder order. driver, trigger, and
@@ -62,10 +66,11 @@ cfg.channels.recorderLabels = ["A", "B", "C", "D"];
 cfg.channels.maxPerRecorder = 8;
 cfg.channels.driver = "A01";
 cfg.channels.trigger = "B01";
-% January mapping established by the reference spectra and legacy selection.
-cfg.channels.data = ["D01", "D02", "C01", "D05", "D08", "D07", "D06"];
-cfg.channels.sensorNumbers = [2 3 4 5 6 7 8];
-cfg.channels.order = [2 3 4 5 6 7 8]; % Select/reorder physical sensor numbers.
+% Corrected January fallback. runData overrides this using positionIndex/sensorNumber,
+% sourceChannel, and samplingRate_Hz, including the different February layout.
+cfg.channels.data = ["D01", "D02", "D05", "C01", "D08", "D07", "D06"];
+cfg.channels.sensorNumbers = 2:8;
+cfg.channels.order = 2:8; % Select/reorder physical sensor numbers.
 % Export grid rates, not necessarily the original recorder acquisition rates.
 cfg.channels.driverSamplingRate = 2e6;
 cfg.channels.triggerSamplingRate = 2e6;
@@ -83,7 +88,7 @@ cfg.paths.additionalFolders = strings(0, 1);
 % switches write only products enabled in cfg.run. saveRawPcbDataInResults
 % controls whether the often-large normalized input is embedded in results.
 
-cfg.output.rootFolder = fullfile(callerDir, "outputs", "january", "Iso_90psi");
+cfg.output.rootFolder = fullfile(dataRoot, "outputs", campaign, caseName);
 cfg.output.convertedDataFolder = fullfile( ...
     cfg.output.rootFolder, "matlab_exports");
 cfg.output.tracePlotFolder = fullfile( ...
@@ -121,7 +126,8 @@ cfg.run.closeFiguresAtStart = false;
 % second-mode calculations; excluded channels remain visible in plots.
 
 cfg.analysis.interval = "manual";
-cfg.analysis.manualTimeRange = [0.75 0.85];
+cfg.analysis.manualTimeRange = [0.30 1.00];
+cfg.analysis.timeReference = "relative"; % Seconds after the common recording start.
 cfg.analysis.onInvalidQuasiSteadyWindow = "useFullRecord";
 
 %% Quasi-steady timing -- tune only when detection needs adjustment
@@ -145,13 +151,13 @@ cfg.timing.pcbAnalysisChannel = "D05";
 cfg.spectrogram.windowLength = 20000; % 100 Hz bin spacing (samplingRate/windowLength)
 cfg.spectrogram.overlap = 0.75;
 cfg.spectrogram.frequencyBand = [50e3 800e3];
-cfg.psd.windowDuration = 0.100;
-cfg.psd.windowStep = 0.100;
+cfg.psd.windowDuration = 0.050;
+cfg.psd.windowStep = 0.050; % Consecutive, non-overlapping 50 ms windows.
 cfg.psd.welchSegmentDuration = cfg.psd.windowDuration / 40;
 cfg.psd.welchOverlap = 0.50;
 cfg.psd.detrend = "linear";
-cfg.psd.plotFrequencyBand = [0 800e3];
-cfg.psd.previewWindowIndices = 1;
+cfg.psd.plotFrequencyBand = [0 400e3];
+cfg.psd.previewWindowIndices = "all";
 
 %% Second-mode settings
 % Excluded channels remain in plots. frequencyBand limits the search;

@@ -33,6 +33,9 @@ figures.driver = figure( ...
     'Position', cfg.plotting.figurePosition);
 
 driverPressure = calibrateDriverSignal(plotDriverData.signal{1});
+if isfield(plotDriverData, 'units') && plotDriverData.units == "Pa"
+    driverPressure = plotDriverData.signal{1};
+end
 plot(plotDriverData.time{1}, driverPressure, ...
     'LineWidth', 1.2, ...
     'DisplayName', string(plotDriverData.channels(1)));
@@ -63,7 +66,9 @@ end
 
 xlim(steadyTimeWindow);
 xlabel('Time (s)', 'FontSize', cfg.plotting.fontSize);
-ylabel('Signal', 'FontSize', cfg.plotting.fontSize);
+units = "V";
+if isfield(plotDataData, 'units'), units = string(plotDataData.units); end
+ylabel("Signal (" + units + ")", 'FontSize', cfg.plotting.fontSize);
 title(sprintf('Detected PCB Window PCB Signals: %.4f to %.4f s', ...
     steadyTimeWindow(1), steadyTimeWindow(2)), ...
     'FontSize', cfg.plotting.fontSize);

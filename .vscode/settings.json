@@ -1,5 +1,7 @@
 {
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
     "python.analysis.extraPaths": [
         "./workflows/fiber_optic/subroutines"
-    ]
+    ],
+    "python-envs.defaultEnvManager": "ms-python.python:system"
 }

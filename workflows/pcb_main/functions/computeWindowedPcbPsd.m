@@ -51,7 +51,8 @@ if availableDuration < windowDuration
 end
 
 windowRatio = (availableDuration - windowDuration) / windowStep;
-roundoffTolerance = 100 * eps(max(1, abs(windowRatio)));
+roundoffTolerance = max(100 * eps(max(1, abs(windowRatio))), ...
+    1e-6 / (samplingRate * windowStep));
 windowCount = floor(windowRatio + roundoffTolerance) + 1;
 windowStartTime = commonStartTime + ...
     (0:windowCount - 1).' * windowStep;
@@ -103,6 +104,8 @@ end
 psdResults = struct();
 psdResults.channels = dataData.channels;
 psdResults.samplingRate = samplingRate;
+psdResults.signalUnits = "V";
+if isfield(dataData, 'units'), psdResults.signalUnits = string(dataData.units); end
 psdResults.windowStartTime = windowStartTime;
 psdResults.windowEndTime = windowEndTime;
 psdResults.windowCenterTime = windowCenterTime;

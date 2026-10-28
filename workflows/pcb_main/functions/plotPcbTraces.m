@@ -34,6 +34,9 @@ driver_FIT = polyfit(driverv,driverp,1);
 
 calibratedDriverSignal = ...
     plotDriverData.signal{1} .* driver_FIT(1) + driver_FIT(2);
+if isfield(plotDriverData, 'units') && plotDriverData.units == "Pa"
+    calibratedDriverSignal = plotDriverData.signal{1};
+end
 plot(plotDriverData.time{1}, calibratedDriverSignal, ...
     'DisplayName', plotDriverData.channels(1));
 hold on
@@ -54,7 +57,9 @@ for i = 1:length(plotDataData.channels)
 end
 
 xlabel('Time (s)', 'FontSize', cfg.plotting.fontSize);
-ylabel('Signal', 'FontSize', cfg.plotting.fontSize);
+units = "V";
+if isfield(plotDataData, 'units'), units = string(plotDataData.units); end
+ylabel("Signal (" + units + ")", 'FontSize', cfg.plotting.fontSize);
 title('PCB Data Traces', 'FontSize', cfg.plotting.fontSize);
 legend('show', 'Location', 'best', 'FontSize', cfg.plotting.fontSize);
 

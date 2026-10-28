@@ -27,6 +27,11 @@ assert(isfolder(globalDir), ...
 addpath(functionDir);
 addpath(reportingDir);
 addpath(genpath(globalDir));
+preloadedData = [];
+if string(cfg.input.source) == "mat" && ...
+        isfield(cfg.input, 'useRunDataMapping') && cfg.input.useRunDataMapping
+    [preloadedData, cfg] = loadPcbData(cfg);
+end
 cfg = selectPcbSensors(cfg);
 validatePcbConfig(cfg);
 
@@ -53,7 +58,11 @@ switch string(cfg.input.source)
         pcbData = convertPnrfData(cfg);
     case {"mat", "txt"}
         fprintf('\n--- Loading %s data ---\n', upper(string(cfg.input.source)));
-        pcbData = loadPcbData(cfg);
+        if isempty(preloadedData)
+            pcbData = loadPcbData(cfg);
+        else
+            pcbData = preloadedData;
+        end
 end
 results.pcbData = pcbData;
 results.stageStatus.inputLoaded = true;
@@ -292,7 +301,9 @@ croppedData = data;
 for channelIndex = 1:numel(data.channels)
     time = data.time{channelIndex};
     signal = data.signal{channelIndex};
-    mask = time >= timeRange(1) & time <= timeRange(2);
+    % Subtracting a large source-clock origin can move a boundary by roundoff.
+    tolerance = max(100*eps(max(1, max(abs(time)))), median(diff(time))*1e-6);
+    mask = time >= timeRange(1)-tolerance & time <= timeRange(2)+tolerance;
     if ~any(mask)
         error('run_pcb_main:EmptyAnalysisInterval', ...
             'Time range does not overlap channel %s.', ...
