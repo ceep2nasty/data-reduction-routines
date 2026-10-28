@@ -16,7 +16,7 @@ def shape(amplitudes, length, positions):
     y = np.zeros_like(positions, dtype=float)
 
     for k, amplitude in enumerate(amplitudes, start=1):
-        y += amplitude * (1 - np.cos(2 * np.pi * k * positions / length))
+        y += amplitude * - np.cos(2 * np.pi * k * positions / length + np.pi/2)
 
     return y
 
@@ -43,12 +43,13 @@ def exact_curvature(second_derivative, first_derivative):
 dy = slope(A, L, x)
 ddy = d2(A, L, x)
 y = exact_curvature(ddy, dy)
+shape_y = shape(A,L,x)
 
 
 fig, ax = plt.subplots(figsize=(9, 4), constrained_layout=True)
-ax.plot(x, ddy, linewidth=1)
+ax.plot(x, shape_y, linewidth=1)
 ax.set_xlabel("Position (mm)")
-ax.set_ylabel("Linear curvature (1/mm)")
+ax.set_ylabel("Shape")
 ax.grid(alpha=0.25)
 plt.show()
 

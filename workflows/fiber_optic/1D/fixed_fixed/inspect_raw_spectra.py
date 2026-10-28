@@ -16,13 +16,13 @@ plt.rcParams.update({'font.size': 20,
                      'font.serif': ['Times New Roman'],
                      }) # Sets global font size
 
-DATA_DIR = Path(r"C:\Users\coled_agkeohi\Notre Dame\FTSI F26\fixed-fixed")
+DATA_DIR = Path(r"Z:\Cole\FTSI\Luna_Data\fixed_fixed\raw\constant_curvature")
 SOURCE_FILES = [
-    DATA_DIR / "roi extended/spec2/top/flat/flat_spec2_top_roi_extended.tsv",
-    DATA_DIR / "roi extended/spec2/bottom/flat/flat_spec2_bottom_roi_extended.tsv",
+    DATA_DIR / "sag2_bottom_test1_2026-10-16_19-00-07_ch1_gages.tsv",
+    DATA_DIR / "sag2_top_test1_2026-10-16_18-45-29_ch1_gages.tsv",
 ]
 TITLES = [None, None]
-save = True
+save = False
 save_filename = "top_bottom_flat_raw_spectra.png"
 save_path = DATA_DIR / "outputs" / "raw_spectra_examples" / save_filename
 

@@ -1,11 +1,13 @@
 close all; clear all; clc; restoredefaultpath;
 
 %Working directory
-MainDir = 'C:\Users\coled\Notre Dame\Github\Peters-Lab-PC\AFOSR_HeatedCone\IR_Reduction_Routines';
-cd(MainDir); cd ..; addpath(genpath('IR_Reduction_Routines'))
+MainDir = 'C:\Users\coled\Notre Dame\Github\data-reduction-routines\workflows\campaigns\afosr_heated_cone\ir';
+repoRoot = 'C:\Users\coled\Notre Dame\Github\data-reduction-routines';
+addpath(MainDir, genpath(fullfile(repoRoot,'matlab')));
+cd(MainDir)
 %Load IR data directory path
-IRDir = "C:\Users\coled\Notre Dame\Peters_Local_Lab_Work\AFOSR_Heated_Cone_Feb2026\";
-IRFolder = "Iso_90psi";
+IRDir = 'Z:\Cole\heated_cone\heatedCone_F26\AFOSR_Heated_Cone_Jan2026\January_2026_IR_Data\';
+IRFolder = 'AllH_90psi';
 LoadDir = IRDir;
 
 frame_rate = 355;   % (Hz) camera's frame rate
@@ -13,7 +15,15 @@ total_frames = 500; % total number of frames
 num_rows = 512; % row camera resolution
 num_columns = 640;  % column camera resolution
 
+fprintf("IR workflow started\n")
 %% 2) Load IR data
+% Restore helper paths when this section is run independently in the editor.
+MainDir = 'C:\Users\coled\Notre Dame\Github\data-reduction-routines\workflows\campaigns\afosr_heated_cone\ir';
+repoRoot = 'C:\Users\coled\Notre Dame\Github\data-reduction-routines';
+addpath(MainDir, genpath(fullfile(repoRoot,'matlab')));
+assert(exist('loadIRasc','file') == 2, ...
+    'Cannot find loadIRasc.m under %s. Check that this is the repository copy of Master1_LoadIR.', ...
+    fullfile(repoRoot,'matlab','ir','load'));
 close all;clc; cd(MainDir)
 %--------------------------------------------------------------------------
 
